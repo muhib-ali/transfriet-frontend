@@ -54,24 +54,23 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
 import {
   listQuotations,
   deleteQuotation,
   getQuotationById,
+  updateQuotation,
 } from "@/lib/quotations.api";
 
 import {
   createInvoice,
-  type CreateInvoiceFromQuotationInput,
+  type CreateInvoiceInput,
   type InvoiceItemInput,
 } from "@/lib/invoices.api";
 import PermissionBoundary from "@/components/permission-boundary";
 import { ENTITY_PERMS } from "@/rbac/permissions-map";
 import { useHasPermission } from "@/hooks/use-permission";
-
-/* ------------------------------------------------------------------ */
-/* Types and helpers                                                   */
-/* ------------------------------------------------------------------ */
 
 type QStatus = "pending" | "accepted" | "sent" | "rejected";
 
@@ -113,10 +112,6 @@ function money(v: string | number | null | undefined) {
   return `$${(n as number).toFixed(2)}`;
 }
 
-/* ------------------------------------------------------------------ */
-/* Page                                                                */
-/* ------------------------------------------------------------------ */
-
 export default function QuotationsPage() {
   const router = useRouter();
 
@@ -124,17 +119,14 @@ export default function QuotationsPage() {
   const [status, setStatus] = useState<"all" | QStatus>("all");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
-  // backend data
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [convertingId, setConvertingId] = useState<string | null>(null);
 
-  // pagination (fixed limit; no dropdown)
   const [page, setPage] = useState(1);
   const limit = 3;
   const [pagination, setPagination] = useState<any | null>(null);
 
-  // KPIs (derived)
   const stats = useMemo(() => {
     const totalCount = pagination?.total ?? rows.length;
     const accepted = rows.filter((r) => r.isInvoiceCreated).length;
@@ -143,13 +135,11 @@ export default function QuotationsPage() {
     return { total: totalCount, accepted, pending, rejected };
   }, [rows, pagination]);
 
-  // Debounce user input to avoid hammering the API on each keystroke
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query.trim()), 400);
     return () => clearTimeout(t);
   }, [query]);
 
-  // Load data; cancel in-flight requests when query/page changes
   useEffect(() => {
     const ac = new AbortController();
     (async () => {
@@ -160,12 +150,11 @@ export default function QuotationsPage() {
           page,
           limit,
           search,
-          { signal: ac.signal }
+          { signal: ac.signal },
         );
         setRows(list ?? []);
         setPagination(pg ?? null);
       } catch (e: any) {
-        // Ignore aborted requests
         if (e?.code !== "ERR_CANCELED") {
           toast.error(e?.response?.data?.message || "Failed to load quotations");
         }
@@ -176,7 +165,6 @@ export default function QuotationsPage() {
     return () => ac.abort();
   }, [page, debouncedQuery]);
 
-  // Reset to first page when search changes
   useEffect(() => {
     setPage(1);
   }, [query]);
@@ -238,7 +226,7 @@ export default function QuotationsPage() {
         q?.customer_id_fk,
         r?.customer,
         r?.customer_id,
-        r?.customerId
+        r?.customerId,
       );
 
       const job_file_id: string | undefined = pickId(
@@ -255,7 +243,7 @@ export default function QuotationsPage() {
         r?.job_file_id,
         r?.jobFileId,
         r?.job_id,
-        r?.jobId
+        r?.jobId,
       );
 
       const items: InvoiceItemInput[] = (q?.items ?? [])
@@ -291,24 +279,46 @@ export default function QuotationsPage() {
         r?.valid_until ||
         new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-      const payload: CreateInvoiceFromQuotationInput = {
-        quotation_id: qid,
-        customer_id,
-        job_file_id,
+      const subcategory_ids: string[] = (q?.subcategories ?? [])
+        .map((s: any) => String(s?.id || s))
+        .filter(Boolean);
+
+      const payload: CreateInvoiceInput = {
+        customer_id: customer_id!,
+        job_file_id: job_file_id!,
+        subcategory_ids,
         valid_until: new Date(validUntilSrc).toISOString(),
+
+        shipper_name: q?.shipper_name || undefined,
+        consignee_name: q?.consignee_name || undefined,
+        pieces_or_containers: q?.pieces_or_containers ? Number(q.pieces_or_containers) : undefined,
+        weight_volume: q?.weight_volume || undefined,
+        cargo_description: q?.cargo_description || undefined,
+        master_bill_no: q?.master_bill_no || undefined,
+        loading_place: q?.loading_place || undefined,
+        departure_date: q?.departure_date ? new Date(q.departure_date).toISOString() : undefined,
+        destination: q?.destination || undefined,
+        arrival_date: q?.arrival_date ? new Date(q.arrival_date).toISOString() : undefined,
+        final_destination: q?.final_destination || undefined,
+        notes: q?.notes || undefined,
+
         items,
       };
 
       await createInvoice(payload);
 
+      try {
+        await updateQuotation({ id: qid, isInvoiceCreated: true });
+      } catch {}
+
       setRows((prev) =>
         prev.map((x) =>
-          x.id === qid ? { ...x, isInvoiceCreated: true } : x
-        )
+          x.id === qid ? { ...x, isInvoiceCreated: true } : x,
+        ),
       );
 
       toast.success(
-        `Quotation ${r?.quote_number ?? r?.id} converted to invoice`
+        `Quotation ${r?.quote_number ?? r?.id} converted to invoice`,
       );
     } catch (e: any) {
       console.error("convertToInvoice error", e);
@@ -326,7 +336,7 @@ export default function QuotationsPage() {
       const { rows: list, pagination: pg } = await listQuotations(
         page,
         limit,
-        query.trim() || undefined
+        query.trim() || undefined,
       );
       setRows(list ?? []);
       setPagination(pg ?? null);
@@ -344,16 +354,13 @@ export default function QuotationsPage() {
     });
   }, [rows, status]);
 
-  /* ---------------- Export helpers (CSV / PDF) ---------------- */
-
   const handleExportCSV = () => {
     if (!filtered.length) {
       toast.info("No quotations to export.");
       return;
     }
 
-    const esc = (val: any) =>
-      `"${String(val ?? "").replace(/"/g, '""')}"`;
+    const esc = (val: any) => `"${String(val ?? "").replace(/"/g, '""')}"`;
 
     const headers = [
       "Quote #",
@@ -379,10 +386,9 @@ export default function QuotationsPage() {
       return [id, client, amount, created, validUntil, statusLabel];
     });
 
-    const csv =
-      [headers.map(esc).join(",")]
-        .concat(rowsData.map((row) => row.map(esc).join(",")))
-        .join("\n");
+    const csv = [headers.map(esc).join(",")]
+      .concat(rowsData.map((row) => row.map(esc).join(",")))
+      .join("\n");
 
     const blob = new Blob([csv], {
       type: "text/csv;charset=utf-8;",
@@ -473,15 +479,14 @@ export default function QuotationsPage() {
     `);
     popup.document.close();
     popup.focus();
-    popup.print(); // user can "Save as PDF"
+    popup.print();
   };
 
-  /* ---------------------- pagination helpers ---------------------- */
   const total = (pagination?.total as number | undefined) ?? rows.length;
   const currentPage = (pagination?.page as number | undefined) ?? page;
   const apiTotalPages = pagination?.totalPages as number | undefined;
   const computedTotalPages = Math.ceil(
-    (((pagination?.total ?? 0) as number) / limit)
+    (((pagination?.total ?? 0) as number) / limit),
   );
   const totalPages = Math.max(1, apiTotalPages ?? (computedTotalPages || 1));
   const hasPrev = pagination ? Boolean(pagination.hasPrev) : currentPage > 1;
@@ -489,41 +494,51 @@ export default function QuotationsPage() {
   const start = total === 0 ? 0 : (currentPage - 1) * limit + 1;
   const end = total === 0 ? 0 : Math.min(currentPage * limit, total);
 
-  // permissions (mirror tax page pattern)
-  const canList   = useHasPermission(ENTITY_PERMS.quotations?.list   ?? "quotations/getAll");
-  const canCreate = useHasPermission(ENTITY_PERMS.quotations?.create ?? "quotations/create");
-  const canRead   = useHasPermission(ENTITY_PERMS.quotations?.read   ?? "quotations/getById");
-  const canUpdate = useHasPermission(ENTITY_PERMS.quotations?.update ?? "quotations/update");
-  const canDelete = useHasPermission(ENTITY_PERMS.quotations?.delete ?? "quotations/delete");
+  const canList = useHasPermission(
+    ENTITY_PERMS.quotations?.list ?? "quotations/getAll",
+  );
+  const canCreate = useHasPermission(
+    ENTITY_PERMS.quotations?.create ?? "quotations/create",
+  );
+  const canRead = useHasPermission(
+    ENTITY_PERMS.quotations?.read ?? "quotations/getById",
+  );
+  const canUpdate = useHasPermission(
+    ENTITY_PERMS.quotations?.update ?? "quotations/update",
+  );
+  const canDelete = useHasPermission(
+    ENTITY_PERMS.quotations?.delete ?? "quotations/delete",
+  );
 
   return (
     <PermissionBoundary screen="/dashboard/quotations" mode="block">
-      <div className="space-y-6">
-        {/* Heading */}
-        <div className="flex items-start justify-between">
+      <div className="space-y-6 pb-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Quotations</h1>
-            <p className="mt-2 text-muted-foreground">
+            <h1 className="text-2xl font-bold md:text-3xl">Quotations</h1>
+            <p className="mt-1 text-sm text-muted-foreground md:text-base">
               Create and manage price quotations for clients
             </p>
           </div>
           {canCreate ? (
-            <Link href="/dashboard/quotations/new">
-              <Button className="gap-2">
+            <Link href="/dashboard/quotations/new" className="w-full sm:w-auto">
+              <Button className="flex w-full items-center justify-center gap-2 sm:w-auto">
                 <Plus className="h-4 w-4" />
-                New Quotation
+                <span>New Quotation</span>
               </Button>
             </Link>
           ) : (
-            <Button className="gap-2" disabled>
+            <Button
+              className="flex w-full items-center justify-center gap-2 sm:w-auto"
+              disabled
+            >
               <Plus className="h-4 w-4" />
-              New Quotation
+              <span>New Quotation</span>
             </Button>
           )}
         </div>
 
-        {/* KPIs */}
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             title="Total Quotations"
             value={total}
@@ -550,14 +565,15 @@ export default function QuotationsPage() {
           />
         </div>
 
-        {/* Table */}
         <Card className="shadow-sm">
-          <CardHeader className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <CardTitle className="text-2xl">All Quotations</CardTitle>
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Search */}
-                <div className="relative w-[260px] sm:w-[320px] max-w-[60vw]">
+          <CardHeader className="space-y-3 pb-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <CardTitle className="text-xl md:text-2xl whitespace-nowrap shrink-0">
+                All Quotations
+              </CardTitle>
+
+              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end lg:flex-1 lg:min-w-0">
+                <div className="relative w-full sm:w-[260px] md:w-[320px] lg:w-[360px]">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={query}
@@ -567,218 +583,238 @@ export default function QuotationsPage() {
                   />
                 </div>
 
-                {/* Status filter */}
-                <Select
-                  value={status}
-                  onValueChange={(v) => setStatus(v as any)}
-                >
-                  <SelectTrigger className="h-9 w-36">
-                    <SelectValue placeholder="All Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="accepted">Accepted</SelectItem>
-                    <SelectItem value="sent">Sent</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+                  <Select
+                    value={status}
+                    onValueChange={(v) => setStatus(v as any)}
+                  >
+                    <SelectTrigger className="h-9 w-full sm:w-40">
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="accepted">Accepted</SelectItem>
+                      <SelectItem value="sent">Sent</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
 
-                {/* Export dropdown */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 rounded-full border-muted-foreground/30 bg-background/60 px-3 text-xs font-medium text-muted-foreground shadow-sm hover:border-primary/40 hover:bg-primary/5 hover:text-primary gap-1.5"
-                    >
-                      <Download className="h-4 w-4" />
-                      <span className="hidden sm:inline">Export</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                      Export current view
-                    </div>
-                    <DropdownMenuItem
-                      onClick={handleExportCSV}
-                      className="cursor-pointer"
-                    >
-                      <FileSpreadsheet className="mr-2 h-4 w-4" />
-                      Export as CSV
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={handleExportPDF}
-                      className="cursor-pointer"
-                    >
-                      <FileText className="mr-2 h-4 w-4" />
-                      Export as PDF
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 gap-1.5 rounded-full border-muted-foreground/30 bg-background/60 px-3 text-xs font-medium text-muted-foreground shadow-sm hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+                      >
+                        <Download className="h-4 w-4" />
+                        <span className="hidden sm:inline">Export</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                        Export current view
+                      </div>
+                      <DropdownMenuItem
+                        onClick={handleExportCSV}
+                        className="cursor-pointer"
+                      >
+                        <FileSpreadsheet className="mr-2 h-4 w-4" />
+                        Export as CSV
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={handleExportPDF}
+                        className="cursor-pointer"
+                      >
+                        <FileText className="mr-2 h-4 w-4" />
+                        Export as PDF
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
           </CardHeader>
 
-          <CardContent className="px-6">
-            {/* rounded corners kept; disable row hover; lock header hover */}
-            <div className="mt-1 rounded-xl border overflow-hidden [&_tbody_tr:hover]:bg-transparent [&_thead_tr:hover]:bg-gray-200">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-200">
-                    <TableHead className="rounded-tl-xl">Quote #</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Valid Until</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-10 rounded-tr-xl"></TableHead>
-                  </TableRow>
-                </TableHeader>
+          <CardContent className="px-3 pb-4 pt-0 sm:px-6 sm:pb-6">
+            <div className="mt-2 rounded-xl border">
+              <div className="w-full overflow-x-auto">
+                <Table className="min-w-[760px] [&_tbody_tr:hover]:bg-transparent [&_thead_tr:hover]:bg-gray-200">
+                  <TableHeader>
+                    <TableRow className="bg-gray-200">
+                      <TableHead className="rounded-tl-xl">Quote #</TableHead>
+                      <TableHead>Client</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Valid Until</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-10 rounded-tr-xl" />
+                    </TableRow>
+                  </TableHeader>
 
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={7}
-                        className="p-8 text-center text-muted-foreground"
-                      >
-                        Loading quotations…
-                      </TableCell>
-                    </TableRow>
-                  ) : !canList ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={7}
-                        className="p-8 text-center text-muted-foreground"
-                      >
-                        You don’t have permission to view quotations.
-                      </TableCell>
-                    </TableRow>
-                  ) : filtered.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={7}
-                        className="p-8 text-center text-muted-foreground"
-                      >
-                        No quotations found.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filtered.map((r, idx) => {
-                      const id = r?.quote_number ?? r?.id;
-                      const client = r?.customer?.name ?? "—";
-                      const created = r?.created_at
-                        ? new Date(r.created_at).toLocaleDateString()
-                        : "—";
-                      const validUntil = r?.valid_until
-                        ? new Date(r.valid_until).toLocaleDateString()
-                        : "—";
-                      const amount = money(r?.grand_total);
-                      const s = deriveStatus(r);
-                      const busy = convertingId === r.id;
-                      const isLast = idx === filtered.length - 1;
-
-                      return (
-                        <TableRow
-                          key={r.id}
-                          className="odd:bg-muted/30 even:bg-white hover:bg-transparent"
+                  <TableBody>
+                    {loading ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={7}
+                          className="p-8 text-center text-muted-foreground"
                         >
-                          <TableCell className={isLast ? "rounded-bl-xl" : ""}>
-                            <span className="font-medium">{id}</span>
-                          </TableCell>
-                          <TableCell>{client}</TableCell>
-                          <TableCell className="font-semibold">
-                            {amount}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {created}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {validUntil}
-                          </TableCell>
-                          <TableCell>
-                            <StatusPill s={s} />
-                          </TableCell>
+                          Loading quotations…
+                        </TableCell>
+                      </TableRow>
+                    ) : !canList ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={7}
+                          className="p-8 text-center text-muted-foreground"
+                        >
+                          You don’t have permission to view quotations.
+                        </TableCell>
+                      </TableRow>
+                    ) : filtered.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={7}
+                          className="p-8 text-center text-muted-foreground"
+                        >
+                          <div className="flex flex-col items-center justify-center gap-3">
+                            <Avatar className="h-16 w-16 border border-dashed border-muted-foreground/30 bg-muted/40">
+                              <AvatarFallback>
+                                <FileText className="h-7 w-7 text-muted-foreground" />
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="text-sm font-medium text-foreground">
+                              No quotations found
+                            </div>
+                            <p className="max-w-xs text-xs text-muted-foreground">
+                              {query || status !== "all"
+                                ? "No quotations match your current search or filters. Try adjusting them."
+                                : "You haven’t created any quotations yet. Start by creating your first quotation."}
+                            </p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filtered.map((r, idx) => {
+                        const id = r?.quote_number ?? r?.id;
+                        const client = r?.customer?.name ?? "—";
+                        const created = r?.created_at
+                          ? new Date(r.created_at).toLocaleDateString()
+                          : "—";
+                        const validUntil = r?.valid_until
+                          ? new Date(r.valid_until).toLocaleDateString()
+                          : "—";
+                        const amount = money(r?.grand_total);
+                        const s = deriveStatus(r);
+                        const busy = convertingId === r.id;
+                        const isLast = idx === filtered.length - 1;
 
-                          <TableCell
-                            className={`text-right ${isLast ? "rounded-br-xl" : ""}`}
+                        return (
+                          <TableRow
+                            key={r.id}
+                            className="odd:bg-muted/30 even:bg-white hover:bg-transparent"
                           >
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                >
-                                  <MoreHorizontal className="h-4 w-4" />
-                                  <span className="sr-only">Open menu</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48">
-                                {canRead && (
-                                  <DropdownMenuItem
-                                    onClick={() => viewClient(r)}
-                                    className="cursor-pointer"
+                            <TableCell className={isLast ? "rounded-bl-xl" : ""}>
+                              <span className="font-medium">{id}</span>
+                            </TableCell>
+                            <TableCell>{client}</TableCell>
+                            <TableCell className="font-semibold">
+                              {amount}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {created}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {validUntil}
+                            </TableCell>
+                            <TableCell>
+                              <StatusPill s={s} />
+                            </TableCell>
+
+                            <TableCell
+                              className={`text-right ${
+                                isLast ? "rounded-br-xl" : ""
+                              }`}
+                            >
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
                                   >
-                                    <Eye className="mr-2 h-4 w-4" /> View
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem
-                                  onClick={() => sendToClient(r)}
-                                  className="cursor-pointer"
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    <span className="sr-only">Open menu</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                  align="end"
+                                  className="w-48"
                                 >
-                                  <Send className="mr-2 h-4 w-4" /> Send to Client
-                                </DropdownMenuItem>
-                                {canUpdate && (
-                                  <DropdownMenuItem
-                                    onClick={() => editQuote(r)}
-                                    className="cursor-pointer"
-                                  >
-                                    <Pencil className="mr-2 h-4 w-4" /> Edit
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem
-                                  disabled={busy || r?.isInvoiceCreated}
-                                  onClick={() => convertToInvoice(r)}
-                                  className={`cursor-pointer ${
-                                    r?.isInvoiceCreated ? "opacity-60" : ""
-                                  }`}
-                                >
-                                  {busy ? (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <ReceiptIcon className="mr-2 h-4 w-4" />
+                                  {canRead && (
+                                    <DropdownMenuItem
+                                      onClick={() => viewClient(r)}
+                                      className="cursor-pointer"
+                                    >
+                                      <Eye className="mr-2 h-4 w-4" /> View
+                                    </DropdownMenuItem>
                                   )}
-                                  {r?.isInvoiceCreated
-                                    ? "Already Converted"
-                                    : "Convert to Invoice"}
-                                </DropdownMenuItem>
-                                {canDelete && (
                                   <DropdownMenuItem
-                                    onClick={() => removeQuote(r)}
-                                    className="cursor-pointer text-destructive focus:text-destructive"
+                                    onClick={() => sendToClient(r)}
+                                    className="cursor-pointer"
                                   >
-                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                    <Send className="mr-2 h-4 w-4" /> Send to
+                                    Client
                                   </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
+                                  {canUpdate && (
+                                    <DropdownMenuItem
+                                      onClick={() => editQuote(r)}
+                                      className="cursor-pointer"
+                                    >
+                                      <Pencil className="mr-2 h-4 w-4" /> Edit
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem
+                                    disabled={busy || r?.isInvoiceCreated}
+                                    onClick={() => convertToInvoice(r)}
+                                    className={`cursor-pointer ${
+                                      r?.isInvoiceCreated ? "opacity-60" : ""
+                                    }`}
+                                  >
+                                    {busy ? (
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <ReceiptIcon className="mr-2 h-4 w-4" />
+                                    )}
+                                    {r?.isInvoiceCreated
+                                      ? "Already Converted"
+                                      : "Convert to Invoice"}
+                                  </DropdownMenuItem>
+                                  {canDelete && (
+                                    <DropdownMenuItem
+                                      onClick={() => removeQuote(r)}
+                                      className="cursor-pointer text-destructive focus:text-destructive"
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
 
-            {/* Pagination Controls */}
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-muted-foreground">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-xs text-muted-foreground sm:text-sm">
                 {`Showing ${start} to ${end} of ${total} quotations`}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -787,10 +823,10 @@ export default function QuotationsPage() {
                   className="gap-1"
                 >
                   <ChevronLeft className="h-4 w-4" />
-                  Previous
+                  <span className="hidden sm:inline">Previous</span>
                 </Button>
 
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1">
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(
                     (pgNum) => (
                       <Button
@@ -798,11 +834,11 @@ export default function QuotationsPage() {
                         variant={currentPage === pgNum ? "default" : "outline"}
                         size="sm"
                         onClick={() => setPage(pgNum)}
-                        className="w-8 h-8 p-0"
+                        className="h-8 w-8 p-0 text-xs"
                       >
                         {pgNum}
                       </Button>
-                    )
+                    ),
                   )}
                 </div>
 
@@ -813,7 +849,7 @@ export default function QuotationsPage() {
                   disabled={!hasNext || loading}
                   className="gap-1"
                 >
-                  Next
+                  <span className="hidden sm:inline">Next</span>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -825,9 +861,6 @@ export default function QuotationsPage() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Small KPI card component                                            */
-/* ------------------------------------------------------------------ */
 function KpiCard({
   title,
   value,
@@ -841,12 +874,14 @@ function KpiCard({
 }) {
   return (
     <Card>
-      <CardContent className="flex items-center justify-between p-5">
+      <CardContent className="flex items-center justify-between p-4 sm:p-5">
         <div>
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <div className="mt-2 text-3xl font-bold">{value}</div>
+          <p className="text-xs text-muted-foreground sm:text-sm">{title}</p>
+          <div className="mt-1 text-2xl font-bold sm:mt-2 sm:text-3xl">
+            {value}
+          </div>
         </div>
-        <div className={`rounded-xl p-3 ${iconClass}`}>{icon}</div>
+        <div className={`rounded-xl p-2.5 sm:p-3 ${iconClass}`}>{icon}</div>
       </CardContent>
     </Card>
   );

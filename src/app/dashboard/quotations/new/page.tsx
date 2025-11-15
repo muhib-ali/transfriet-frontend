@@ -262,16 +262,10 @@ export default function NewQuotationPage() {
         items,
       } as CreateQuotationInput;
 
-      // Include master_bill_no only for Sea/Ocean; otherwise append value to notes
-      const supportsMBL = mblDynamicLabel === "Master Bill No.";
-      const noteSnippet = mbl ? `Waybill/Ref: ${mbl}` : "";
-      const payload: CreateQuotationInput = supportsMBL
-        ? { ...basePayload, master_bill_no: mbl || undefined }
-        : {
-            ...basePayload,
-            notes:
-              [basePayload.notes, noteSnippet].filter(Boolean).join(" | ") || undefined,
-          };
+      const payload: CreateQuotationInput = {
+        ...basePayload,
+        master_bill_no: mbl || undefined,
+      };
 
       await createQuotation(payload);
       toast.success("Quotation created successfully");

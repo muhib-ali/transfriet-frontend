@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Card,
@@ -26,10 +27,13 @@ import {
   Eye, FileDown, Pencil, Trash2, ChevronLeft, ChevronRight,
 } from "lucide-react";
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
 import { listClients, createClient, updateClient, deleteClient, getClientById } from "@/lib/clients.api";
 import { ENTITY_PERMS } from "@/rbac/permissions-map";
 import { useHasPermission } from "@/hooks/use-permission";
 import PermissionBoundary from "@/components/permission-boundary";
+
 /** ---------- types aligned with UI (kept same columns) ---------- */
 type CStatus = "active" | "inactive";
 type Row = {
@@ -62,6 +66,7 @@ function StatusPill({ s }: { s: CStatus }) {
 }
 
 export default function ClientsPage() {
+  const router = useRouter();
   const [rows, setRows] = useState<Row[]>(STATIC_ROWS);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -257,252 +262,267 @@ export default function ClientsPage() {
   return (
     <PermissionBoundary screen="/dashboard/clients" mode="block">
       <div className="space-y-6 scrollbar-stable">
-      {/* Header (unchanged styling) */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Clients</h1>
-          <p className="mt-1 text-muted-foreground">
-            Manage your Clients and client relationships
-          </p>
+        {/* Header (unchanged styling) */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Clients</h1>
+            <p className="mt-1 text-muted-foreground">
+              Manage your Clients and client relationships
+            </p>
+          </div>
+
+          {/* Create: gate with permission; fallback is disabled button */}
+          <PermissionGate
+            route={ENTITY_PERMS.clients?.create ?? "clients/create"}
+            fallback={(
+              <Button className="gap-2" disabled title="No permission to create">
+                <Plus className="h-4 w-4" />
+                Add Client
+              </Button>
+            )}
+          >
+            <AddClientDialog onCreate={handleCreate} />
+          </PermissionGate>
         </div>
 
-        {/* Create: gate with permission; fallback is disabled button */}
-        <PermissionGate
-          route={ENTITY_PERMS.clients?.create ?? "clients/create"}
-          fallback={(
-            <Button className="gap-2" disabled title="No permission to create">
-              <Plus className="h-4 w-4" />
-              Add Client
-            </Button>
-          )}
+        {/* Stats row (unchanged styling) */}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Card>
+            <CardContent className="flex items-center justify-between p-6">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Clients</p>
+                <p className="mt-2 text-3xl font-semibold">{total}</p>
+              </div>
+              <Building2 className="h-8 w-8 text-muted-foreground" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex items-center justify-between p-6">
+              <div>
+                <p className="text-sm text-muted-foreground">Active</p>
+                <p className="mt-2 text-3xl font-semibold">{active}</p>
+              </div>
+              <Building className="h-8 w-8 text-emerald-500" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex items-center justify-between p-6">
+              <div>
+                <p className="text-sm text-muted-foreground">Inactive</p>
+                <p className="mt-2 text-3xl font-semibold">{inactive}</p>
+              </div>
+              <Building className="h-8 w-8 text-muted-foreground" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex items-center justify-between p-6">
+              <div>
+                <p className="text-sm text-muted-foreground">This Month</p>
+                <p className="mt-2 text-3xl font-semibold">+{thisMonth}</p>
+              </div>
+              <Plus className="h-8 w-8 text-amber-500" />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Table (same columns; quotations-style card/pagination) */}
+        <Card className="shadow-sm">
+          <CardHeader className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-2xl">All Clients</CardTitle>
+              <div className="flex gap-2">
+                <div className="relative w-[350px] max-w-[50vw]">
+                  <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Search clients..."
+                    className="h-9 pl-9"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="px-6">
+            <div className="mt-1 rounded-xl border overflow-hidden [&_tbody_tr:hover]:bg-transparent [&_thead_tr:hover]:bg-gray-200">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-200">
+                    <TableHead className="rounded-tl-xl">Company</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Address</TableHead>
+                    <TableHead>Invoices</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right rounded-tr-xl">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="p-8 text-center text-muted-foreground">
+                        Loading clients…
+                      </TableCell>
+                    </TableRow>
+                  ) : filtered.map((c, idx) => {
+                    const isLast = idx === filtered.length - 1;
+                    return (
+                      <TableRow key={c.id} className="odd:bg-muted/30 even:bg-white hover:bg-transparent">
+                        <TableCell className={`font-medium ${isLast ? "rounded-bl-xl" : ""}`}>{c.company}</TableCell>
+
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Inbox className="h-4 w-4 text-muted-foreground" />
+                              <span>{c.email}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Phone className="h-4 w-4" />
+                              <span>{c.phone}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="text-sm">{c.address}</TableCell>
+                        <TableCell className="text-sm">{c.invoices}</TableCell>
+                        <TableCell><StatusPill s={c.status} /></TableCell>
+
+                        <TableCell className={`text-right ${isLast ? "rounded-br-xl" : ""}`}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuItem className="gap-2" onClick={() => router.push(`/dashboard/clients/${encodeURIComponent(c.id)}`)}>
+                                <Eye className="h-4 w-4" />
+                                View
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-2">
+                                <FileDown className="h-4 w-4" />
+                                Export
+                              </DropdownMenuItem>
+                              {canUpdate && (
+                                <DropdownMenuItem className="gap-2" onClick={() => openEditDialog(c.id)}>
+                                  <Pencil className="h-4 w-4" />
+                                  Edit
+                                </DropdownMenuItem>
+                              )}
+                              {canDelete && (
+                                <DropdownMenuItem
+                                  className="gap-2 text-destructive focus:text-destructive"
+                                  onClick={() => handleDelete(c.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+
+                  {!loading && filtered.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="p-8 text-center text-muted-foreground">
+                        <div className="flex flex-col items-center justify-center gap-3">
+                          <Avatar className="h-16 w-16 border border-dashed border-muted-foreground/30 bg-muted/40">
+                            <AvatarFallback>
+                              <Building2 className="h-7 w-7 text-muted-foreground" />
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="text-sm font-medium text-foreground">
+                            No clients found
+                          </div>
+                          <p className="text-xs text-muted-foreground max-w-xs">
+                            {q
+                              ? "No clients match your search. Try changing or clearing the search term."
+                              : "You haven’t added any clients yet. Start by creating your first client."}
+                          </p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                {`Showing ${pagStart} to ${pagEnd} of ${pagTotal} clients`}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={!pagHasPrev || loading}
+                  className="gap-1"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: pagTotalPages }, (_, i) => i + 1).map((pgNum) => (
+                    <Button
+                      key={pgNum}
+                      variant={pagCurrentPage === pgNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPage(pgNum)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {pgNum}
+                    </Button>
+                  ))}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={!pagHasNext || loading}
+                  className="gap-1"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Edit dialog (identical UI to AddClientDialog) */}
+        <Dialog
+          open={openEdit}
+          onOpenChange={(o) => {
+            if (!o) {
+              setOpenEdit(false);
+              setEditing(null);
+            }
+          }}
         >
-          <AddClientDialog onCreate={handleCreate} />
-        </PermissionGate>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit Client</DialogTitle>
+            </DialogHeader>
+            {/* Reuse AddClientForm with initial values and Update label */}
+            <AddClientForm
+              onSubmit={handleUpdate}
+              submitting={savingEdit}
+              submitLabel="Update Client"
+              initialValues={editing ?? undefined}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
-
-      {/* Stats row (unchanged styling) */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Clients</p>
-              <p className="mt-2 text-3xl font-semibold">{total}</p>
-            </div>
-            <Building2 className="h-8 w-8 text-muted-foreground" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Active</p>
-              <p className="mt-2 text-3xl font-semibold">{active}</p>
-            </div>
-            <Building className="h-8 w-8 text-emerald-500" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Inactive</p>
-              <p className="mt-2 text-3xl font-semibold">{inactive}</p>
-            </div>
-            <Building className="h-8 w-8 text-muted-foreground" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm text-muted-foreground">This Month</p>
-              <p className="mt-2 text-3xl font-semibold">+{thisMonth}</p>
-            </div>
-            <Plus className="h-8 w-8 text-amber-500" />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Table (same columns; quotations-style card/pagination) */}
-      <Card className="shadow-sm">
-        <CardHeader className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-2xl">All Clients</CardTitle>
-            <div className="flex gap-2">
-              <div className="relative w-[350px] max-w-[50vw]">
-                <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search clients..."
-                  className="h-9 pl-9"
-                />
-              </div>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="px-6">
-          <div className="mt-1 rounded-xl border overflow-hidden [&_tbody_tr:hover]:bg-transparent [&_thead_tr:hover]:bg-gray-200">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-200">
-                  <TableHead className="rounded-tl-xl">Company</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Address</TableHead>
-                  <TableHead>Invoices</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right rounded-tr-xl">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="p-8 text-center text-muted-foreground">
-                      Loading clients…
-                    </TableCell>
-                  </TableRow>
-                ) : filtered.map((c, idx) => {
-                  const isLast = idx === filtered.length - 1;
-                  return (
-                  <TableRow key={c.id} className="odd:bg-muted/30 even:bg-white hover:bg-transparent">
-                    <TableCell className={`font-medium ${isLast ? "rounded-bl-xl" : ""}`}>{c.company}</TableCell>
-
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Inbox className="h-4 w-4 text-muted-foreground" />
-                          <span>{c.email}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Phone className="h-4 w-4" />
-                          <span>{c.phone}</span>
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="text-sm">{c.address}</TableCell>
-                    <TableCell className="text-sm">{c.invoices}</TableCell>
-                    <TableCell><StatusPill s={c.status} /></TableCell>
-
-                    <TableCell className={`text-right ${isLast ? "rounded-br-xl" : ""}`}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem className="gap-2">
-                            <Eye className="h-4 w-4" />
-                            View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2">
-                            <FileDown className="h-4 w-4" />
-                            Export
-                          </DropdownMenuItem>
-                          {canUpdate && (
-                            <DropdownMenuItem className="gap-2" onClick={() => openEditDialog(c.id)}>
-                              <Pencil className="h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                          )}
-                          {canDelete && (
-                            <DropdownMenuItem
-                              className="gap-2 text-destructive focus:text-destructive"
-                              onClick={() => handleDelete(c.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );})}
-
-                {!loading && filtered.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="p-8 text-center text-muted-foreground">
-                      No clients found.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Pagination Controls */}
-          <div className="flex items-center justify-between mt-4">
-            <div className="text-sm text-muted-foreground">
-              {`Showing ${pagStart} to ${pagEnd} of ${pagTotal} clients`}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={!pagHasPrev || loading}
-                className="gap-1"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-
-              <div className="flex items-center gap-1">
-                {Array.from({ length: pagTotalPages }, (_, i) => i + 1).map((pgNum) => (
-                  <Button
-                    key={pgNum}
-                    variant={pagCurrentPage === pgNum ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPage(pgNum)}
-                    className="w-8 h-8 p-0"
-                  >
-                    {pgNum}
-                  </Button>
-                ))}
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={!pagHasNext || loading}
-                className="gap-1"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-      </CardContent>
-      </Card>
-      {/* Edit dialog (identical UI to AddClientDialog) */}
-      <Dialog
-        open={openEdit}
-        onOpenChange={(o) => {
-          if (!o) {
-            setOpenEdit(false);
-            setEditing(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Edit Client</DialogTitle>
-          </DialogHeader>
-          {/* Reuse AddClientForm with initial values and Update label */}
-          <AddClientForm
-            onSubmit={handleUpdate}
-            submitting={savingEdit}
-            submitLabel="Update Client"
-            initialValues={editing ?? undefined}
-          />
-        </DialogContent>
-      </Dialog>
-    </div>
     </PermissionBoundary>
-    
   );
 }

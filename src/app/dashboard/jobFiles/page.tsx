@@ -6,14 +6,35 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Pencil, Trash2, Plus, Search, ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Pencil,
+  Trash2,
+  Plus,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  FileX2,
+} from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
 import JobFileFormModal from "@/components/job-files/job-file-form-modal";
-import JobFileEditModal from "@/components/job-files/job-file-edit-modal";  
+import JobFileEditModal from "@/components/job-files/job-file-edit-modal";
 
 import {
   listJobFiles,
@@ -51,13 +72,11 @@ export default function JobFilesPage() {
   const current = rows.find((r) => r.id === editId) || null;
 
   // RBAC
-  const canList   = useHasPermission(ENTITY_PERMS.jobFiles.list);
+  const canList = useHasPermission(ENTITY_PERMS.jobFiles.list);
   const canCreate = useHasPermission(ENTITY_PERMS.jobFiles.create);
-  const canRead   = useHasPermission(ENTITY_PERMS.jobFiles.read);
+  const canRead = useHasPermission(ENTITY_PERMS.jobFiles.read);
   const canUpdate = useHasPermission(ENTITY_PERMS.jobFiles.update);
   const canDelete = useHasPermission(ENTITY_PERMS.jobFiles.delete);
-
-
 
   // debounce search input
   useEffect(() => {
@@ -75,9 +94,11 @@ export default function JobFilesPage() {
           setRows([]);
           return;
         }
-        const { rows } = await listJobFiles(page, limit, debouncedQ || undefined, { signal: ac.signal });
+        const { rows } = await listJobFiles(page, limit, debouncedQ || undefined, {
+          signal: ac.signal,
+        });
         setRows(
-          rows.map((c: JobFileItem) => ({ 
+          rows.map((c: JobFileItem) => ({
             id: c.id,
             title: c.title,
             description: c.description ?? "",
@@ -151,7 +172,11 @@ export default function JobFilesPage() {
   const applyEdit = async (updated: { title: string; description: string }) => {
     if (!canUpdate || !editId) return;
     try {
-      await updateJobFile({ id: editId, title: updated.title, description: updated.description });
+      await updateJobFile({
+        id: editId,
+        title: updated.title,
+        description: updated.description,
+      });
       toast.success("Job file updated");
 
       const { rows } = await listJobFiles(page, limit, q.trim() || undefined);
@@ -184,6 +209,7 @@ export default function JobFilesPage() {
   };
 
   return (
+    
     <div className="space-y-6 scrollbar-stable">
       {/* Header (same styling) */}
       <div className="flex items-center justify-between">
@@ -212,7 +238,7 @@ export default function JobFilesPage() {
             <div className="relative w-[350px] max-w-[50vw]">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search categories..."
+                placeholder="Search job files..."
                 className="h-9 pl-9"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
@@ -225,23 +251,33 @@ export default function JobFilesPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-200">
-                  <TableHead className="w-[30%] rounded-tl-xl">Title</TableHead>
+                  <TableHead className="w-[30%] rounded-tl-xl">
+                    Title
+                  </TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead className="w-[20%]">Created At</TableHead>
-                  <TableHead className="w-[110px] text-right rounded-tr-xl">Actions</TableHead>
+                  <TableHead className="w-[110px] text-right rounded-tr-xl">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="p-8 text-center text-muted-foreground">
-                      Loading categories…
+                    <TableCell
+                      colSpan={4}
+                      className="p-8 text-center text-muted-foreground"
+                    >
+                      Loading job files…
                     </TableCell>
                   </TableRow>
                 ) : !canList ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="p-8 text-center text-muted-foreground">
-                      You don’t have permission to view categories.
+                    <TableCell
+                      colSpan={4}
+                      className="p-8 text-center text-muted-foreground"
+                    >
+                      You don’t have permission to view job files.
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -249,8 +285,15 @@ export default function JobFilesPage() {
                     {filtered.map((r, idx) => {
                       const isLast = idx === filtered.length - 1;
                       return (
-                        <TableRow key={r.id} className="odd:bg-muted/30 even:bg-white hover:bg-transparent">
-                          <TableCell className={`font-medium ${isLast ? "rounded-bl-xl" : ""}`}>
+                        <TableRow
+                          key={r.id}
+                          className="odd:bg-muted/30 even:bg-white hover:bg-transparent"
+                        >
+                          <TableCell
+                            className={`font-medium ${
+                              isLast ? "rounded-bl-xl" : ""
+                            }`}
+                          >
                             <div className="flex items-center gap-2">
                               <Badge variant="outline" className="rounded-md">
                                 {r.title.slice(0, 1).toUpperCase()}
@@ -258,19 +301,40 @@ export default function JobFilesPage() {
                               {r.title}
                             </div>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{r.description}</TableCell>
-                          <TableCell>{r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}</TableCell>
-                          <TableCell className={`text-right ${isLast ? "rounded-br-xl" : ""}`}>
+                          <TableCell className="text-muted-foreground">
+                            {r.description}
+                          </TableCell>
+                          <TableCell>
+                            {r.created_at
+                              ? new Date(r.created_at).toLocaleDateString()
+                              : "—"}
+                          </TableCell>
+                          <TableCell
+                            className={`text-right ${
+                              isLast ? "rounded-br-xl" : ""
+                            }`}
+                          >
                             <div className="flex justify-end">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="More actions">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    aria-label="More actions"
+                                  >
                                     <MoreHorizontal className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-40">
+                                <DropdownMenuContent
+                                  align="end"
+                                  className="w-40"
+                                >
                                   {canUpdate && (
-                                    <DropdownMenuItem className="gap-2" onClick={() => openEdit(r.id)}>
+                                    <DropdownMenuItem
+                                      className="gap-2"
+                                      onClick={() => openEdit(r.id)}
+                                    >
                                       <Pencil className="h-4 w-4" />
                                       Edit
                                     </DropdownMenuItem>
@@ -294,8 +358,25 @@ export default function JobFilesPage() {
 
                     {filtered.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={4} className="p-8 text-center text-muted-foreground">
-                          No categories found.
+                        <TableCell
+                          colSpan={4}
+                          className="p-8 text-center text-muted-foreground"
+                        >
+                          <div className="flex flex-col items-center justify-center gap-3">
+                            <Avatar className="h-16 w-16 border border-dashed border-muted-foreground/30 bg-muted/40">
+                              <AvatarFallback>
+                                <FileX2 className="h-7 w-7 text-muted-foreground" />
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="text-sm font-medium text-foreground">
+                              No job files found
+                            </div>
+                            <p className="text-xs text-muted-foreground max-w-xs">
+                              {q
+                                ? "No job files match your search. Try changing or clearing the search term."
+                                : "You don’t have any job files yet. Get started by adding your first job file."}
+                            </p>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )}
@@ -307,7 +388,9 @@ export default function JobFilesPage() {
           {/* Pagination Controls (UI only; logic unchanged) */}
           <div className="flex items-center justify-between mt-4">
             <div className="text-sm text-muted-foreground">
-              {`Showing ${filtered.length ? 1 : 0} to ${filtered.length} of ${filtered.length} categories`}
+              {`Showing ${filtered.length ? 1 : 0} to ${
+                filtered.length
+              } of ${filtered.length} job files`}
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" disabled className="gap-1">
@@ -315,7 +398,13 @@ export default function JobFilesPage() {
                 Previous
               </Button>
               <div className="flex items-center gap-1">
-                <Button variant="default" size="sm" className="w-8 h-8 p-0">1</Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="w-8 h-8 p-0"
+                >
+                  1
+                </Button>
               </div>
               <Button variant="outline" size="sm" disabled className="gap-1">
                 Next

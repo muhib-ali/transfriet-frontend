@@ -265,9 +265,9 @@ const remove = async (moduleId: string) => {
         </CardHeader>
         <CardContent className="px-6">
           {/* Table */}
-          <div className="relative w-full overflow-x-auto rounded-xl border">
+          <div className="mt-1 rounded-xl border overflow-hidden [&_tbody_tr:hover]:bg-transparent [&_thead_tr:hover]:bg-gray-200">
             <table className="w-full caption-bottom text-sm">
-              <thead className="[&_tr]:border-b">
+              <thead >
                 <tr className="text-left bg-gray-200">
                   <th className="p-4 font-medium rounded-tl-xl">Module</th>
                   <th className="p-4 font-medium">Description</th>

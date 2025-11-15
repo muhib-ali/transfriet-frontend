@@ -7,20 +7,28 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import TaxFormDialog, { type TaxFormValue } from "@/components/tax/tax-form";
 import { listTaxes, getTaxById, createTax, updateTax, deleteTax } from "@/lib/taxes.api";
 import PermissionBoundary from "@/components/permission-boundary";
 import { ENTITY_PERMS } from "@/rbac/permissions-map";
 import { useHasPermission } from "@/hooks/use-permission";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 function StatusPill({ active }: { active: boolean }) {
   return (
     <span
       className={cn(
         "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
-        active ? "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300" : "bg-muted text-muted-foreground"
+        active
+          ? "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"
+          : "bg-muted text-muted-foreground"
       )}
     >
       {active ? "Active" : "Inactive"}
@@ -49,12 +57,11 @@ export default function TaxesPage() {
   const [mode, setMode] = React.useState<"create" | "edit">("create");
   const [current, setCurrent] = React.useState<Row | undefined>(undefined);
 
-  const canList   = useHasPermission(ENTITY_PERMS.taxes?.list   ?? "taxes.getAll");
+  const canList = useHasPermission(ENTITY_PERMS.taxes?.list ?? "taxes.getAll");
   const canCreate = useHasPermission(ENTITY_PERMS.taxes?.create ?? "taxes.create");
-  const canRead   = useHasPermission(ENTITY_PERMS.taxes?.read   ?? "taxes.getById");
+  const canRead = useHasPermission(ENTITY_PERMS.taxes?.read ?? "taxes.getById");
   const canUpdate = useHasPermission(ENTITY_PERMS.taxes?.update ?? "taxes.update");
   const canDelete = useHasPermission(ENTITY_PERMS.taxes?.delete ?? "taxes.delete");
-  // const canEdit = canRead || canUpdate;
 
   React.useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query.trim()), 350);
@@ -70,7 +77,9 @@ export default function TaxesPage() {
           setRows([]);
           return;
         }
-        const { rows } = await listTaxes(page, limit, debouncedQuery || undefined, { signal: ac.signal });
+        const { rows } = await listTaxes(page, limit, debouncedQuery || undefined, {
+          signal: ac.signal,
+        });
         setRows(
           rows.map((t) => ({
             id: t.id,
@@ -100,6 +109,7 @@ export default function TaxesPage() {
   const ChevronLeft = (Icons as any).ChevronLeft;
   const ChevronRight = (Icons as any).ChevronRight;
   const MoreHorizontal = (Icons as any).MoreHorizontal;
+  const FileX2 = (Icons as any).FileX2;
 
   const openCreate = () => {
     if (!canCreate) return;
@@ -116,7 +126,6 @@ export default function TaxesPage() {
       setCurrent({
         id: t.id,
         title: t.title,
-        
         value: typeof t.value === "string" ? parseFloat(t.value) : t.value,
         is_active: t.is_active ?? false,
         created_at: t.created_at,
@@ -134,7 +143,6 @@ export default function TaxesPage() {
         if (!canCreate) return;
         await createTax({
           title: payload.title,
-          
           value: payload.value,
         });
         toast.success("Tax created");
@@ -143,7 +151,6 @@ export default function TaxesPage() {
         await updateTax({
           id: payload.id!,
           title: payload.title,
-
           value: payload.value,
         });
         toast.success("Tax updated");
@@ -154,7 +161,6 @@ export default function TaxesPage() {
         rows.map((t) => ({
           id: t.id,
           title: t.title,
-          
           value: typeof t.value === "string" ? parseFloat(t.value) : t.value,
           is_active: t.is_active ?? false,
           created_at: t.created_at,
@@ -185,7 +191,9 @@ export default function TaxesPage() {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-3xl font-bold">Taxes</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Manage tax rates and configurations</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Manage tax rates and configurations
+            </p>
           </div>
           <Button className="gap-2" onClick={openCreate} disabled={!canCreate}>
             <Plus className="h-4 w-4" />
@@ -216,40 +224,76 @@ export default function TaxesPage() {
                     <th className="p-4 font-medium rounded-tl-xl">Title</th>
                     <th className="p-4 font-medium">Value</th>
                     <th className="p-4 font-medium">Status</th>
-                    <th className="p-4 font-medium text-right rounded-tr-xl">Actions</th>
+                    <th className="p-4 font-medium text-right rounded-tr-xl">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-muted-foreground">Loading taxes…</td>
+                      <td
+                        colSpan={5}
+                        className="p-8 text-center text-muted-foreground"
+                      >
+                        Loading taxes…
+                      </td>
                     </tr>
                   ) : !canList ? (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-muted-foreground">You don’t have permission to view taxes.</td>
+                      <td
+                        colSpan={5}
+                        className="p-8 text-center text-muted-foreground"
+                      >
+                        You don’t have permission to view taxes.
+                      </td>
                     </tr>
                   ) : (
                     <>
                       {filtered.map((t, idx) => {
                         const isLast = idx === filtered.length - 1;
                         return (
-                          <tr key={t.id} className="odd:bg-muted/30 even:bg-white">
-                            <td className={`p-4 font-medium ${isLast ? "rounded-bl-xl" : ""}`}>{t.title}</td>
+                          <tr
+                            key={t.id}
+                            className="odd:bg-muted/30 even:bg-white"
+                          >
+                            <td
+                              className={`p-4 font-medium ${
+                                isLast ? "rounded-bl-xl" : ""
+                              }`}
+                            >
+                              {t.title}
+                            </td>
                             <td className="p-4">{t.value}%</td>
                             <td className="p-4">
                               <StatusPill active={t.is_active} />
                             </td>
-                            <td className={`p-4 ${isLast ? "rounded-br-xl" : ""}`}>
+                            <td
+                              className={`p-4 ${
+                                isLast ? "rounded-br-xl" : ""
+                              }`}
+                            >
                               <div className="flex justify-end">
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="More actions">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      aria-label="More actions"
+                                    >
                                       <MoreHorizontal className="h-4 w-4" />
                                     </Button>
                                   </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-40">
+                                  <DropdownMenuContent
+                                    align="end"
+                                    className="w-40"
+                                  >
                                     {canUpdate && (
-                                      <DropdownMenuItem className="gap-2" onClick={() => openEdit(t)}>
+                                      <DropdownMenuItem
+                                        className="gap-2"
+                                        onClick={() => openEdit(t)}
+                                      >
                                         <Pencil className="h-4 w-4" />
                                         Edit
                                       </DropdownMenuItem>
@@ -272,7 +316,26 @@ export default function TaxesPage() {
                       })}
                       {filtered.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="p-8 text-center text-muted-foreground">No taxes found.</td>
+                          <td
+                            colSpan={5}
+                            className="p-8 text-center text-muted-foreground"
+                          >
+                            <div className="flex flex-col items-center justify-center gap-3">
+                              <Avatar className="h-16 w-16 border border-dashed border-muted-foreground/30 bg-muted/40">
+                                <AvatarFallback>
+                                  <FileX2 className="h-7 w-7 text-muted-foreground" />
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="text-sm font-medium text-foreground">
+                                No taxes found
+                              </div>
+                              <p className="text-xs text-muted-foreground max-w-xs">
+                                {query
+                                  ? "No taxes match your search. Try changing or clearing the search term."
+                                  : "You don’t have any tax rates yet. Get started by adding your first tax."}
+                              </p>
+                            </div>
+                          </td>
                         </tr>
                       )}
                     </>
@@ -283,17 +346,35 @@ export default function TaxesPage() {
 
             <div className="flex items-center justify-between mt-4">
               <div className="text-sm text-muted-foreground">
-                {`Showing ${filtered.length ? 1 : 0} to ${filtered.length} of ${filtered.length} taxes`}
+                {`Showing ${filtered.length ? 1 : 0} to ${
+                  filtered.length
+                } of ${filtered.length} taxes`}
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled className="gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  className="gap-1"
+                >
                   <ChevronLeft className="h-4 w-4" />
                   Previous
                 </Button>
                 <div className="flex items-center gap-1">
-                  <Button variant="default" size="sm" className="w-8 h-8 p-0">1</Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="w-8 h-8 p-0"
+                  >
+                    1
+                  </Button>
                 </div>
-                <Button variant="outline" size="sm" disabled className="gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  className="gap-1"
+                >
                   Next
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -303,7 +384,7 @@ export default function TaxesPage() {
         </Card>
 
         <TaxFormDialog
-          open={mode === "edit" ? (canUpdate && open) : (canCreate && open)}
+          open={mode === "edit" ? canUpdate && open : canCreate && open}
           onOpenChange={(next) => {
             if (mode === "edit" && !canUpdate) return;
             if (mode === "create" && !canCreate) return;
@@ -315,7 +396,6 @@ export default function TaxesPage() {
             current && {
               id: current.id,
               title: current.title,
-              
               value: current.value,
               is_active: current.is_active,
             }

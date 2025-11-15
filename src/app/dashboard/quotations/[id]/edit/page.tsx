@@ -314,13 +314,10 @@ export default function EditQuotationPage() {
         items,
       } as UpdateQuotationInput;
 
-      const supportsMBL = mblDynamicLabel === "Master Bill No.";
-      const payload: UpdateQuotationInput = supportsMBL
-        ? { ...basePayload, master_bill_no: mbl || undefined }
-        : {
-            ...basePayload,
-            notes: upsertWaybillRef(basePayload.notes, mbl),
-          };
+      const payload: UpdateQuotationInput = {
+        ...basePayload,
+        master_bill_no: mbl || undefined,
+      };
 
       setSaving(true);
       await updateQuotation(payload);

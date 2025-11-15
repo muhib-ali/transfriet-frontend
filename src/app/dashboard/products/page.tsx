@@ -8,11 +8,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import PermissionBoundary from "@/components/permission-boundary";
 
-import ProductFormDialog, { type ProductFormValue } from "@/components/products/product-form";
+import ProductFormDialog, {
+  type ProductFormValue,
+} from "@/components/products/product-form";
 
 import {
   listProducts,
@@ -22,7 +30,7 @@ import {
   deleteProduct,
   type ProductItem,
 } from "@/lib/products.api";
-import { listJobFiles, type JobFileItem } from "@/lib/job_files.api";
+import { listJobFiles } from "@/lib/job_files.api";
 
 import { ENTITY_PERMS } from "@/rbac/permissions-map";
 import { useHasPermission } from "@/hooks/use-permission";
@@ -67,15 +75,27 @@ export default function ProductsPage() {
   const [current, setCurrent] = React.useState<Row | undefined>(undefined);
 
   // RBAC
-  const canList   = useHasPermission(ENTITY_PERMS.products?.list   ?? "products.getAll");
-  const canCreate = useHasPermission(ENTITY_PERMS.products?.create ?? "products.create");
-  const canRead   = useHasPermission(ENTITY_PERMS.products?.read   ?? "products.getById");
-  const canUpdate = useHasPermission(ENTITY_PERMS.products?.update ?? "products.update");
-  const canDelete = useHasPermission(ENTITY_PERMS.products?.delete ?? "products.delete");
+  const canList = useHasPermission(
+    ENTITY_PERMS.products?.list ?? "products.getAll"
+  );
+  const canCreate = useHasPermission(
+    ENTITY_PERMS.products?.create ?? "products.create"
+  );
+  const canRead = useHasPermission(
+    ENTITY_PERMS.products?.read ?? "products.getById"
+  );
+  const canUpdate = useHasPermission(
+    ENTITY_PERMS.products?.update ?? "products.update"
+  );
+  const canDelete = useHasPermission(
+    ENTITY_PERMS.products?.delete ?? "products.delete"
+  );
   // const canEdit = canRead || canUpdate;
 
   // Job File dropdown options
-  const [jobFileOptions, setJobFileOptions] = React.useState<{ id: string; title: string }[]>([]);
+  const [jobFileOptions, setJobFileOptions] = React.useState<
+    { id: string; title: string }[]
+  >([]);
   const jobFileMap = React.useMemo(() => {
     const m = new Map<string, string>();
     for (const c of jobFileOptions) m.set(c.id, c.title);
@@ -86,13 +106,15 @@ export default function ProductsPage() {
     products: ProductItem[],
     jobFiles: Array<{ id: string; title: string }>
   ): Row[] => {
-    const jobFileMap = new Map<string, string>(jobFiles.map((c) => [c.id, c.title]));
+    // (map already created above; we just normalize product fields)
     return products.map((p) => ({
       id: p.id,
       title: p.title,
-
       description: p.description ?? "",
-      price: typeof p.price === "string" ? parseFloat(p.price) : Number(p.price || 0),
+      price:
+        typeof p.price === "string"
+          ? parseFloat(p.price)
+          : Number(p.price || 0),
       job_file_id: p.job_file_id ?? null,
       is_active: p.is_active ?? false,
       created_at: p.created_at,
@@ -120,7 +142,9 @@ export default function ProductsPage() {
     const ac = new AbortController();
     (async () => {
       try {
-        const { rows: jobFiles } = await listJobFiles(1, 100, undefined, { signal: ac.signal });
+        const { rows: jobFiles } = await listJobFiles(1, 100, undefined, {
+          signal: ac.signal,
+        });
         setJobFileOptions(jobFiles.map((c) => ({ id: c.id, title: c.title })));
         setJobFilesLoaded(true);
       } catch (e: any) {
@@ -142,7 +166,12 @@ export default function ProductsPage() {
           return;
         }
         if (!jobFilesLoaded) return; // wait until job files are loaded once
-        const { rows: prods } = await listProducts(page, limit, debouncedQuery || undefined, { signal: ac.signal });
+        const { rows: prods } = await listProducts(
+          page,
+          limit,
+          debouncedQuery || undefined,
+          { signal: ac.signal }
+        );
         setRows(normalizeRows(prods, jobFileOptions));
       } catch (e: any) {
         if (e?.code === "ERR_CANCELED" || e?.message === "canceled") return; // ignore aborts
@@ -164,6 +193,7 @@ export default function ProductsPage() {
   const ChevronLeft = (Icons as any).ChevronLeft;
   const ChevronRight = (Icons as any).ChevronRight;
   const MoreHorizontal = (Icons as any).MoreHorizontal;
+  const FileX2 = (Icons as any).FileX2;
 
   const openCreate = () => {
     if (!canCreate) return;
@@ -181,7 +211,10 @@ export default function ProductsPage() {
         id: p.id,
         title: p.title,
         description: p.description ?? "",
-        price: typeof p.price === "string" ? parseFloat(p.price) : Number(p.price || 0),
+        price:
+          typeof p.price === "string"
+            ? parseFloat(p.price)
+            : Number(p.price || 0),
         job_file_id: p.job_file_id ?? null,
         is_active: p.is_active ?? false,
         created_at: p.created_at,
@@ -199,7 +232,6 @@ export default function ProductsPage() {
         if (!canCreate) return;
         await createProduct({
           title: payload.title,
-
           description: payload.description,
           price: payload.price,
           job_file_id: payload.job_file_id ?? null,
@@ -210,7 +242,6 @@ export default function ProductsPage() {
         await updateProduct({
           id: payload.id!,
           title: payload.title,
-
           description: payload.description,
           price: payload.price,
           job_file_id: payload.job_file_id ?? null,
@@ -281,19 +312,27 @@ export default function ProductsPage() {
                     <th className="p-4 font-medium">Job File</th>
                     <th className="p-4 font-medium">Price</th>
                     <th className="p-4 font-medium">Status</th>
-                    <th className="p-4 font-medium text-right rounded-tr-xl">Actions</th>
+                    <th className="p-4 font-medium text-right rounded-tr-xl">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                      <td
+                        colSpan={5}
+                        className="p-8 text-center text-muted-foreground"
+                      >
                         Loading products…
                       </td>
                     </tr>
                   ) : !canList ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                      <td
+                        colSpan={5}
+                        className="p-8 text-center text-muted-foreground"
+                      >
                         You don’t have permission to view products.
                       </td>
                     </tr>
@@ -301,9 +340,20 @@ export default function ProductsPage() {
                     <>
                       {filtered.map((p, idx) => {
                         const isLast = idx === filtered.length - 1;
+                        const jobFileTitle = p.job_file_id
+                          ? jobFileMap.get(p.job_file_id) ?? "—"
+                          : "—";
+
                         return (
-                          <tr key={p.id} className="odd:bg-muted/30 even:bg-white hover:bg-transparent">
-                            <td className={`p-4 font-medium ${isLast ? "rounded-bl-xl" : ""}`}>
+                          <tr
+                            key={p.id}
+                            className="odd:bg-muted/30 even:bg-white hover:bg-transparent"
+                          >
+                            <td
+                              className={`p-4 font-medium ${
+                                isLast ? "rounded-bl-xl" : ""
+                              }`}
+                            >
                               <div className="flex flex-col">
                                 <span>{p.title}</span>
                                 <span className="text-xs text-muted-foreground line-clamp-1">
@@ -311,22 +361,41 @@ export default function ProductsPage() {
                                 </span>
                               </div>
                             </td>
-                            <td className="p-4 text-muted-foreground">{p.title ?? "—"}</td>
-                            <td className="p-4 font-medium">{p.price.toLocaleString()}</td>
+                            <td className="p-4 text-muted-foreground">
+                              {jobFileTitle}
+                            </td>
+                            <td className="p-4 font-medium">
+                              {p.price.toLocaleString()}
+                            </td>
                             <td className="p-4">
                               <StatusPill active={p.is_active} />
                             </td>
-                            <td className={`p-4 ${isLast ? "rounded-br-xl" : ""}`}>
+                            <td
+                              className={`p-4 ${
+                                isLast ? "rounded-br-xl" : ""
+                              }`}
+                            >
                               <div className="flex justify-end">
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="More actions">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      aria-label="More actions"
+                                    >
                                       <MoreHorizontal className="h-4 w-4" />
                                     </Button>
                                   </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-40">
+                                  <DropdownMenuContent
+                                    align="end"
+                                    className="w-40"
+                                  >
                                     {canUpdate && (
-                                      <DropdownMenuItem className="gap-2" onClick={() => openEdit(p)}>
+                                      <DropdownMenuItem
+                                        className="gap-2"
+                                        onClick={() => openEdit(p)}
+                                      >
                                         <Pencil className="h-4 w-4" />
                                         Edit
                                       </DropdownMenuItem>
@@ -347,10 +416,28 @@ export default function ProductsPage() {
                           </tr>
                         );
                       })}
+
                       {filtered.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                            No products found.
+                          <td
+                            colSpan={5}
+                            className="p-8 text-center text-muted-foreground"
+                          >
+                            <div className="flex flex-col items-center justify-center gap-3">
+                              <Avatar className="h-16 w-16 border border-dashed border-muted-foreground/30 bg-muted/40">
+                                <AvatarFallback>
+                                  <FileX2 className="h-7 w-7 text-muted-foreground" />
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="text-sm font-medium text-foreground">
+                                No products found
+                              </div>
+                              <p className="text-xs text-muted-foreground max-w-xs">
+                                {query
+                                  ? "No products match your search. Try changing or clearing the search term."
+                                  : "You haven’t added any products yet. Start by creating your first product."}
+                              </p>
+                            </div>
                           </td>
                         </tr>
                       )}
@@ -363,7 +450,9 @@ export default function ProductsPage() {
             {/* Pagination Controls (UI only) */}
             <div className="flex items-center justify-between mt-4">
               <div className="text-sm text-muted-foreground">
-                {`Showing ${filtered.length ? 1 : 0} to ${filtered.length} of ${filtered.length} products`}
+                {`Showing ${filtered.length ? 1 : 0} to ${
+                  filtered.length
+                } of ${filtered.length} products`}
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" disabled className="gap-1">
@@ -371,7 +460,13 @@ export default function ProductsPage() {
                   Previous
                 </Button>
                 <div className="flex items-center gap-1">
-                  <Button variant="default" size="sm" className="w-8 h-8 p-0">1</Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="w-8 h-8 p-0"
+                  >
+                    1
+                  </Button>
                 </div>
                 <Button variant="outline" size="sm" disabled className="gap-1">
                   Next

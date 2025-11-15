@@ -133,6 +133,7 @@
     @apply bg-background text-foreground;
     /* Keep vertical scrollbar space reserved to avoid layout jump on dialogs */
     overflow-y: scroll;
+    scrollbar-gutter: stable;
   
   }
 }
