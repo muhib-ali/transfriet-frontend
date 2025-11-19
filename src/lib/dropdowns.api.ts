@@ -37,11 +37,11 @@ export async function loadAllDropdowns() {
     jobFiles = map(rows, "id", "title");
   }
 
-  // Subcategories
-  let subcategories = await tryDropdown("/dropdowns/getAllSubcategories", "subcategoriesDropdown");
-  if (!subcategories.length) {
-    const rows = await tryList("/subcategories/getAll", "subcategories");
-    subcategories = map(rows, "id", "title");
+  // Service Details
+  let serviceDetails = await tryDropdown("/dropdowns/getAllServiceDetails", "serviceDetailsDropdown");
+  if (!serviceDetails.length) {
+    const rows = await tryList("/service_details/getAll", "service_details");
+    serviceDetails = map(rows, "id", "title");
   }
 
   // Products
@@ -65,5 +65,5 @@ export async function loadAllDropdowns() {
     taxes = map(rows, "id", rows?.[0]?.title ? "title" : "name");
   }
 
-  return { jobFiles, subcategories, products, clients, taxes };
+  return { jobFiles, serviceDetails, products, clients, taxes };
 }

@@ -59,7 +59,7 @@ export type CreateInvoiceFromQuotationInput = {
 export type CreateInvoiceInput = {
   customer_id: string;
   job_file_id: string;
-  subcategory_ids: string[];
+  service_detail_ids: string[];
   valid_until: string; // ISO
 
   shipper_name?: string;
@@ -127,7 +127,7 @@ export type Invoice = {
       }
     | null;
 
-  subcategories?:
+  service_details?:
     | Array<{
         id: string;
         title?: string;

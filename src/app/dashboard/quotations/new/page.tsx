@@ -36,7 +36,7 @@ type QuotationItemInput = {
 type CreateQuotationInput = {
   customer_id: string;
   job_file_id: string;
-  subcategory_ids: string[];
+  service_detail_ids: string[];
   valid_until: string;
 
   shipper_name?: string;
@@ -93,7 +93,7 @@ export default function NewQuotationPage() {
 
   // Dropdown options as {label,value, price?}  (price for products = unit price, for taxes = percent)
   const [jobFiles, setJobFiles] = React.useState<DDOption[]>([]);
-  const [subcategories, setSubcategories] = React.useState<DDOption[]>([]);
+  const [serviceDetails, setServiceDetails] = React.useState<DDOption[]>([]);
   const [clients, setClients] = React.useState<DDOption[]>([]);
   const [products, setProducts] = React.useState<DDOption[]>([]);
   const [taxes, setTaxes] = React.useState<DDOption[]>([]);
@@ -101,12 +101,12 @@ export default function NewQuotationPage() {
 
   // Find import/export by label (case-insensitive)
   const importSub = React.useMemo(
-    () => subcategories.find((s) => s.label?.toLowerCase() === "import"),
-    [subcategories]
+    () => serviceDetails.find((s) => s.label?.toLowerCase() === "import"),
+    [serviceDetails]
   );
   const exportSub = React.useMemo(
-    () => subcategories.find((s) => s.label?.toLowerCase() === "export"),
-    [subcategories]
+    () => serviceDetails.find((s) => s.label?.toLowerCase() === "export"),
+    [serviceDetails]
   );
 
   // ===== Category & type (gates the rest) =====
@@ -190,7 +190,7 @@ export default function NewQuotationPage() {
         setLoadingLists(true);
         const dds = await loadAllDropdowns();
         setJobFiles(dds.jobFiles);
-        setSubcategories(dds.subcategories);
+        setServiceDetails(dds.serviceDetails);
         setProducts(dds.products); // includes price (unit price)
         setClients(dds.clients);
         setTaxes(dds.taxes);       // includes price (percent) if backend sends
@@ -231,12 +231,12 @@ export default function NewQuotationPage() {
       }
 
       // BOTH import & export can be included
-      const subcategory_ids: string[] = [
+      const service_detail_ids: string[] = [
         ...(typeImport && importSub ? [importSub.value] : []),
         ...(typeExport && exportSub ? [exportSub.value] : []),
       ];
-      if (subcategory_ids.length === 0) {
-        toast.error("Import/Export subcategories not found on server.");
+      if (service_detail_ids.length === 0) {
+        toast.error("Import/Export service details not found on server.");
         return;
       }
 
@@ -244,7 +244,7 @@ export default function NewQuotationPage() {
       const basePayload = {
         customer_id: customer,
         job_file_id: jobFile,
-        subcategory_ids,
+        service_detail_ids,
         valid_until: new Date(validUntil).toISOString(),
 
         shipper_name: shipper || undefined,
@@ -281,7 +281,12 @@ export default function NewQuotationPage() {
        <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <Button
+
+
+        <div className="w-full">
+          <div className="flex justify-between gap-5 items-center">
+              <h1 className="text-3xl font-bold">Create New Quotation</h1>
+                      <Button
           variant="outline"
           size="sm"
           onClick={() => router.back()}
@@ -291,9 +296,8 @@ export default function NewQuotationPage() {
           <span className="hidden sm:inline">Back to Quotations</span>
           <span className="sm:hidden">Back</span>
         </Button>
-
-        <div>
-          <h1 className="text-3xl font-bold">Create New Quotation</h1>
+          </div>
+        
           <p className="mt-1 text-muted-foreground">
             Fill in the details to generate a quotation
           </p>
@@ -320,10 +324,10 @@ export default function NewQuotationPage() {
         </CardContent>
       </Card>
 
-      {/* Category & Subcategory */}
+      {/* Category & Service Detail */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-xl font-semibold">Job File &amp; Subcategory</h2>
+          <h2 className="text-xl font-semibold">Job File &amp; Service Detail</h2>
 
           <div className="mt-6 grid gap-6">
             <div className="space-y-2 md:col-span-2 w-full min-w-0">
@@ -355,7 +359,7 @@ export default function NewQuotationPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Subcategory</Label>
+              <Label>Service Detail</Label>
               <div className="flex flex-wrap items-center gap-6">
                 <label className="inline-flex items-center gap-2 text-sm">
                   <Checkbox
@@ -376,12 +380,12 @@ export default function NewQuotationPage() {
               </div>
               {!importSub || !exportSub ? (
                 <p className="text-xs text-muted-foreground">
-                  Tip: Ensure your <code>subcategories</code> include “import” and “export”.
+                  Tip: Ensure your <code>service details</code> include “import” and “export”.
                 </p>
               ) : null}
               {!showRest && (
                 <p className="text-xs text-muted-foreground">
-                  Select at least one subcategory (Import and/or Export) to continue.
+                  Select at least one service detail (Import and/or Export) to continue.
                 </p>
               )}
             </div>

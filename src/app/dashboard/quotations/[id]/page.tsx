@@ -185,7 +185,10 @@ export default function QuotationViewPage() {
             <span className="sm:hidden">Back</span>
           </Button>
           <div className="flex-1">
+            <div>
             <h1 className="text-3xl font-bold">Quotation Details</h1>
+            </div>
+
             <p className="mt-1 text-muted-foreground">#{number}</p>
           </div>
           <div className="flex gap-2">

@@ -279,14 +279,14 @@ export default function QuotationsPage() {
         r?.valid_until ||
         new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-      const subcategory_ids: string[] = (q?.subcategories ?? [])
+      const service_detail_ids: string[] = (q?.service_details ?? [])
         .map((s: any) => String(s?.id || s))
         .filter(Boolean);
 
       const payload: CreateInvoiceInput = {
         customer_id: customer_id!,
         job_file_id: job_file_id!,
-        subcategory_ids,
+        service_detail_ids,
         valid_until: new Date(validUntilSrc).toISOString(),
 
         shipper_name: q?.shipper_name || undefined,

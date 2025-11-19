@@ -69,7 +69,7 @@ export type QuotationItemInput = {
 export type CreateQuotationInput = {
   customer_id: string;
   job_file_id: string;
-  subcategory_ids: string[]; // import/export (at least one; your UI enforces one)
+  service_detail_ids: string[]; // import/export (at least one; your UI enforces one)
   valid_until: string;       // ISO string
 
   shipper_name?: string;
@@ -144,9 +144,9 @@ export async function deleteQuotation(id: string) {
 }
 
 /** Optional helpers if you want to populate selects later */
-export async function listSubcategories(page = 1, limit = 10) {
-  const { data } = await apiClient.get(`/subcategories/getAll`, {
+export async function listServiceDetails(page = 1, limit = 10) {
+  const { data } = await apiClient.get(`/service_details/getAll`, {
     params: { page, limit },
   });
-  return data?.data?.subcategories ?? [];
+  return data?.data?.service_details ?? [];
 }

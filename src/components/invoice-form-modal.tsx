@@ -174,10 +174,10 @@ export function InvoiceFormModal({ trigger, onSaved }: Props) {
             </CardContent>
           </Card>
 
-          {/* Category & Subcategory */}
+          {/* Category & Service Detail */}
           <Card>
             <CardContent className="p-6">
-              <h2 className="text-xl font-semibold">Category &amp; Subcategory</h2>
+              <h2 className="text-xl font-semibold">Category &amp; Service Detail</h2>
 
               <div className="mt-6 grid gap-6">
                 <div className="space-y-2">
@@ -197,7 +197,7 @@ export function InvoiceFormModal({ trigger, onSaved }: Props) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Subcategory</Label>
+                  <Label>Service Detail</Label>
                   <div className="flex items-center gap-6">
                     <label className="inline-flex items-center gap-2 text-sm">
                       <Checkbox

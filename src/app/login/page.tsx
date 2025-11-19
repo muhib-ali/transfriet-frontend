@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
+      toast.success("Logged in successfully");
       router.push("/dashboard"); // unified path
     } catch (err: any) {
       const msg = err?.response?.data?.message || "Login failed. Please try again.";

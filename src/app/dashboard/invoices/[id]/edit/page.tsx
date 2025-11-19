@@ -78,18 +78,18 @@ export default function EditInvoicePage() {
   const [saving, setSaving] = React.useState(false);
 
   const [jobFiles, setJobFiles] = React.useState<DDOption[]>([]);
-  const [subcategories, setSubcategories] = React.useState<DDOption[]>([]);
+  const [serviceDetails, setServiceDetails] = React.useState<DDOption[]>([]);
   const [clients, setClients] = React.useState<DDOption[]>([]);
   const [products, setProducts] = React.useState<DDOption[]>([]);
   const [taxes, setTaxes] = React.useState<DDOption[]>([]);
 
   const importSub = React.useMemo(
-    () => subcategories.find((s) => s.label?.toLowerCase() === "import"),
-    [subcategories]
+    () => serviceDetails.find((s) => s.label?.toLowerCase() === "import"),
+    [serviceDetails]
   );
   const exportSub = React.useMemo(
-    () => subcategories.find((s) => s.label?.toLowerCase() === "export"),
-    [subcategories]
+    () => serviceDetails.find((s) => s.label?.toLowerCase() === "export"),
+    [serviceDetails]
   );
 
   const [jobFile, setJobFile] = React.useState<string>("");
@@ -100,8 +100,8 @@ export default function EditInvoicePage() {
   const [typeExport, setTypeExport] = React.useState(false);
   const showRest = jobFile !== "" && (typeImport || typeExport);
 
-  // keep original subcategory ids to hydrate AFTER subcategories arrive (race fix)
-  const [invSubIds, setInvSubIds] = React.useState<string[]>([]);
+  // keep original service detail ids to hydrate AFTER service details arrive
+  const [invServiceDetailIds, setInvServiceDetailIds] = React.useState<string[]>([]);
 
   const selectedJobFileLabel = React.useMemo(
     () => jobFiles.find((c) => c.value === jobFile)?.label ?? "",
@@ -181,7 +181,7 @@ export default function EditInvoicePage() {
         setLoading(true);
         const dds = await loadAllDropdowns();
         setJobFiles(dds.jobFiles);
-        setSubcategories(dds.subcategories);
+        setServiceDetails(dds.serviceDetails);
         setProducts(dds.products); // expects {label,value,price}
         setClients(dds.clients);
         setTaxes(dds.taxes); // expects {label,value,price(percent)}
@@ -214,10 +214,10 @@ export default function EditInvoicePage() {
             : ""
         );
 
-        const subs: string[] = ((inv as any)?.subcategories ?? []).map(
+        const subs: string[] = ((inv as any)?.service_details ?? []).map(
           (s: any) => String(s?.id || s)
         );
-        setInvSubIds(subs);
+        setInvServiceDetailIds(subs);
 
         setShipper((inv as any)?.shipper_name ?? "");
         setConsignee((inv as any)?.consignee_name ?? "");
@@ -278,20 +278,20 @@ export default function EditInvoicePage() {
   }, [id]);
 
   React.useEffect(() => {
-    if (!subcategories.length) return;
+    if (!serviceDetails.length) return;
     const hasImport =
-      importSub && invSubIds.includes(String(importSub.value));
+      importSub && invServiceDetailIds.includes(String(importSub.value));
     const hasExport =
-      exportSub && invSubIds.includes(String(exportSub.value));
+      exportSub && invServiceDetailIds.includes(String(exportSub.value));
     setTypeImport(Boolean(hasImport));
     setTypeExport(Boolean(hasExport));
-  }, [subcategories, importSub, exportSub, invSubIds]);
+  }, [serviceDetails, importSub, exportSub, invServiceDetailIds]);
 
   async function onUpdate() {
     try {
       if (!id) return;
 
-      const subcategory_ids: string[] = [
+      const service_detail_ids: string[] = [
         ...(typeImport && importSub ? [String(importSub.value)] : []),
         ...(typeExport && exportSub ? [String(exportSub.value)] : []),
       ];
@@ -307,7 +307,7 @@ export default function EditInvoicePage() {
 
       const basePayload: UpdateInvoiceInput = {
         id,
-        subcategory_ids,
+        service_detail_ids,
         valid_until: validUntil
           ? new Date(validUntil).toISOString()
           : undefined,
@@ -383,21 +383,21 @@ export default function EditInvoicePage() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-start gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.back()}
-            className="group h-9 rounded-full border-muted-foreground/20 bg-background/60 px-3 text-xs font-medium text-muted-foreground shadow-sm hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
-          >
-            <ArrowLeft className="mr-1 h-4 w-4 transition-transform duration-150 group-hover:-translate-x-0.5" />
-            <span className="hidden sm:inline">Back to Invoices</span>
-            <span className="sm:hidden">Back</span>
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold">Edit Invoice</h1>
-            <p className="mt-1 text-muted-foreground">
-              Update details and save changes
-            </p>
+          <div className="w-full">
+            <div className="flex justify-between gap-5 items-center">
+              <h1 className="text-3xl font-bold">Edit Invoice</h1>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.back()}
+                className="group h-9 rounded-full border-muted-foreground/20 bg-background/60 px-3 text-xs font-medium text-muted-foreground shadow-sm hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
+              >
+                <ArrowLeft className="mr-1 h-4 w-4 transition-transform duration-150 group-hover:-translate-x-0.5" />
+                <span className="hidden sm:inline">Back to Invoices</span>
+                <span className="sm:hidden">Back</span>
+              </Button>
+            </div>
+            <p className="mt-1 text-muted-foreground">Update details and save changes</p>
           </div>
         </div>
 
@@ -424,11 +424,11 @@ export default function EditInvoicePage() {
           </CardContent>
         </Card>
 
-        {/* Category & Subcategory */}
+        {/* Category & Service Detail */}
         <Card>
           <CardContent className="p-6">
             <h2 className="text-xl font-semibold">
-              Job File &amp; Subcategory
+              Job File &amp; Service Detail
             </h2>
             <div className="mt-6 grid gap-6">
               <div className="space-y-2 md:col-span-2 w-full min-w-0">
@@ -461,7 +461,7 @@ export default function EditInvoicePage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Subcategory</Label>
+                <Label>Service Detail</Label>
                 <div className="flex items-center gap-6">
                   <label className="inline-flex items-center gap-2 text-sm">
                     <Checkbox
@@ -486,7 +486,7 @@ export default function EditInvoicePage() {
                 </div>
                 {!importSub || !exportSub ? (
                   <p className="text-xs text-muted-foreground">
-                    Tip: Ensure your <code>subcategories</code>{" "}
+                    Tip: Ensure your <code>service details</code>{" "}
                     include “import” and “export”.
                   </p>
                 ) : null}
