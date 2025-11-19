@@ -23,11 +23,12 @@ import {
 
 export type ProductFormValue = {
   id?: string;
-  title: string;
-
-  description?: string;
   price: number;
   job_file_id?: string | null;
+  title_en: string;
+  description_en?: string;
+  title_ar: string;
+  description_ar?: string;
 };
 
 type JobFileOption = { id: string; title: string };
@@ -49,9 +50,10 @@ export default function ProductFormDialog({
   jobFiles,
   onSubmit,
 }: Props) {
-  const [title, setTitle] = React.useState(initial?.title ?? "");
-
-  const [description, setDescription] = React.useState(initial?.description ?? "");
+  const [titleEn, setTitleEn] = React.useState(initial?.title_en ?? "");
+  const [descEn, setDescEn] = React.useState(initial?.description_en ?? "");
+  const [titleAr, setTitleAr] = React.useState(initial?.title_ar ?? "");
+  const [descAr, setDescAr] = React.useState(initial?.description_ar ?? "");
   const [price, setPrice] = React.useState<string>(
     initial?.price !== undefined ? String(initial.price) : ""
   );
@@ -60,58 +62,97 @@ export default function ProductFormDialog({
   );
 
   React.useEffect(() => {
-    setTitle(initial?.title ?? "");
-
-    setDescription(initial?.description ?? "");
+    setTitleEn(initial?.title_en ?? "");
+    setDescEn(initial?.description_en ?? "");
+    setTitleAr(initial?.title_ar ?? "");
+    setDescAr(initial?.description_ar ?? "");
     setPrice(initial?.price !== undefined ? String(initial.price) : "");
     setJobFileId(initial?.job_file_id ?? undefined);
   }, [initial, open]);
 
   const handleSave = async () => {
-    if (!title.trim()) return;
+    if (!titleEn.trim() || !titleAr.trim()) {
+      // basic required validation; optionally show toast in parent
+      return;
+    }
     await onSubmit({
       id: initial?.id,
-      title: title.trim(),
-      description: description.trim(),
       price: Number(price || 0),
       job_file_id: jobFileId ?? null,
+      title_en: titleEn.trim(),
+      description_en: descEn.trim(),
+      title_ar: titleAr.trim(),
+      description_ar: descAr.trim(),
     });
   };
+
+  const isSaveDisabled =
+    !titleEn.trim() || !titleAr.trim() || !price || Number(price) <= 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>{mode === "create" ? "Create Product" : "Edit Product"}</DialogTitle>
+          <DialogTitle>
+            {mode === "create" ? "Create Product" : "Edit Product"}
+          </DialogTitle>
           <DialogDescription>
-            {mode === "create" ? "Add a new product" : "Update product information"}
+            {mode === "create"
+              ? "Add a new product with English and Arabic details"
+              : "Update product information in both languages"}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* English Title */}
           <div className="space-y-2">
-            <Label htmlFor="prod-title">Title *</Label>
+            <Label htmlFor="prod-title-en">Title (English) *</Label>
             <Input
-              id="prod-title"
-              placeholder="Product title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              id="prod-title-en"
+              placeholder="Product title in English"
+              value={titleEn}
+              onChange={(e) => setTitleEn(e.target.value)}
             />
           </div>
 
-          
-
+          {/* Arabic Title */}
           <div className="space-y-2">
-            <Label htmlFor="prod-desc">Description</Label>
-            <Textarea
-              id="prod-desc"
-              rows={3}
-              placeholder="Product description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+            <Label htmlFor="prod-title-ar">عنوان (Arabic Title) *</Label>
+            <Input
+              id="prod-title-ar"
+              placeholder="عنوان المنتج بالعربية"
+              dir="rtl"
+              value={titleAr}
+              onChange={(e) => setTitleAr(e.target.value)}
             />
           </div>
 
+          {/* English Description */}
+          <div className="space-y-2">
+            <Label htmlFor="prod-desc-en">Description (English)</Label>
+            <Textarea
+              id="prod-desc-en"
+              rows={3}
+              placeholder="Product description in English"
+              value={descEn}
+              onChange={(e) => setDescEn(e.target.value)}
+            />
+          </div>
+
+          {/* Arabic Description */}
+          <div className="space-y-2">
+            <Label htmlFor="prod-desc-ar">الوصف (Arabic Description)</Label>
+            <Textarea
+              id="prod-desc-ar"
+              rows={3}
+              placeholder="وصف المنتج بالعربية"
+              dir="rtl"
+              value={descAr}
+              onChange={(e) => setDescAr(e.target.value)}
+            />
+          </div>
+
+          {/* Price */}
           <div className="space-y-2">
             <Label htmlFor="prod-price">Price *</Label>
             <Input
@@ -124,6 +165,7 @@ export default function ProductFormDialog({
             />
           </div>
 
+          {/* Job File */}
           <div className="space-y-2">
             <Label>Job File</Label>
             <Select
@@ -148,7 +190,9 @@ export default function ProductFormDialog({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSave}>{mode === "create" ? "Create" : "Update"}</Button>
+            <Button onClick={handleSave} disabled={isSaveDisabled}>
+              {mode === "create" ? "Create" : "Update"}
+            </Button>
           </div>
         </div>
       </DialogContent>

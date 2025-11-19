@@ -1,7 +1,7 @@
 // src/lib/dropdowns.api.ts
 import api from "@/lib/api-client";
 
-export type DDOption = { label: string; value: string ; price?: number;};
+export type DDOption = { label: string; value: string; price?: number };
 
 // Try dropdown endpoints first; if 404, fallback to full list endpoints.
 async function tryDropdown(path: string, key: string): Promise<DDOption[]> {
@@ -30,29 +30,67 @@ function map(rows: any[], valueKey: string, labelKey: string): DDOption[] {
 }
 
 export async function loadAllDropdowns() {
-  // Categories
-  let jobFiles = await tryDropdown("/dropdowns/getAllJobFiles", "jobFilesDropdown");
+  // Job Files
+  let jobFiles = await tryDropdown(
+    "/dropdowns/getAllJobFiles",
+    "jobFilesDropdown"
+  );
   if (!jobFiles.length) {
     const rows = await tryList("/job_files/getAll", "job_files");
     jobFiles = map(rows, "id", "title");
   }
 
   // Service Details
-  let serviceDetails = await tryDropdown("/dropdowns/getAllServiceDetails", "serviceDetailsDropdown");
+  let serviceDetails = await tryDropdown(
+    "/dropdowns/getAllServiceDetails",
+    "serviceDetailsDropdown"
+  );
   if (!serviceDetails.length) {
     const rows = await tryList("/service_details/getAll", "service_details");
     serviceDetails = map(rows, "id", "title");
   }
 
-  // Products
-  let products = await tryDropdown("/dropdowns/getAllProducts", "productsDropdown");
-  if (!products.length) {
+  // Products (multi-language + price support)
+  let products = await tryDropdown(
+    "/dropdowns/getAllProducts",
+    "productsDropdown"
+  );
+
+  {
     const rows = await tryList("/products/getAll", "products");
-    products = map(rows, "id", rows?.[0]?.title ? "title" : "name");
+    if (rows.length) {
+      products = (rows ?? [])
+        .map((r) => {
+          const translations = r?.translations || {};
+          const en = translations?.en;
+          const ar = translations?.ar;
+
+          const baseTitle = en?.title || r?.title || r?.name || "Unnamed product";
+          const arTitle = ar?.title;
+
+          const label = arTitle && arTitle.trim().length > 0 ? `${baseTitle} (${arTitle})` : baseTitle;
+
+          const rawPrice = r?.price;
+          const priceNumber = rawPrice !== undefined && rawPrice !== null ? Number(rawPrice) : undefined;
+
+          const value = String(r?.id ?? "");
+          if (!value || !label) return null;
+
+          const option: DDOption = { value, label };
+          if (!Number.isNaN(priceNumber!) && priceNumber !== undefined) option.price = priceNumber;
+          return option;
+        })
+        .filter(Boolean) as DDOption[];
+    } else if (!products.length) {
+      products = map(rows, "id", rows?.[0]?.title ? "title" : "name");
+    }
   }
 
   // Clients
-  let clients = await tryDropdown("/dropdowns/getAllClients", "clientsDropdown");
+  let clients = await tryDropdown(
+    "/dropdowns/getAllClients",
+    "clientsDropdown"
+  );
   if (!clients.length) {
     const rows = await tryList("/clients/getAll", "clients");
     clients = map(rows, "id", rows?.[0]?.name ? "name" : "title");

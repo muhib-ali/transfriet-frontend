@@ -21,6 +21,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 import api from "@/lib/api-client";
 import { loadAllDropdowns, type DDOption } from "@/lib/dropdowns.api";
+import ProductFormDialog, { type ProductFormValue } from "@/components/products/product-form";
+import { createProduct } from "@/lib/products.api";
 import PermissionBoundary from "@/components/permission-boundary";
 import { ENTITY_PERMS } from "@/rbac/permissions-map";
 import { useHasPermission } from "@/hooks/use-permission";
@@ -109,6 +111,25 @@ export default function NewQuotationPage() {
     [serviceDetails]
   );
 
+  const productsEn = React.useMemo(
+    () =>
+      products.map((p) => {
+        const m = p.label.match(/^(.*?)\s*\((.*?)\)\s*$/);
+        const en = m ? m[1] : p.label;
+        return { ...p, label: en } as DDOption;
+      }),
+    [products]
+  );
+  const productsAr = React.useMemo(
+    () =>
+      products.map((p) => {
+        const m = p.label.match(/^(.*?)\s*\((.*?)\)\s*$/);
+        const ar = m ? m[2] : p.label;
+        return { ...p, label: ar } as DDOption;
+      }),
+    [products]
+  );
+
   // ===== Category & type (gates the rest) =====
   const [jobFile, setJobFile] = React.useState<string>("");
   // allow BOTH import & export simultaneously
@@ -125,7 +146,6 @@ export default function NewQuotationPage() {
 
   // ===== Basic info =====
   const [validUntil, setValidUntil] = React.useState("");
-  const [email, setEmail] = React.useState("");
 
   // ===== Shipment details =====
   const [shipper, setShipper] = React.useState("");
@@ -182,6 +202,37 @@ export default function NewQuotationPage() {
 
   // ===== Notes =====
   const [notes, setNotes] = React.useState("");
+  const canCreateProduct = useHasPermission(
+    ENTITY_PERMS.products?.create ?? "products.create"
+  );
+  const [prodFormOpen, setProdFormOpen] = React.useState(false);
+  const [prodFormIndex, setProdFormIndex] = React.useState<number | null>(null);
+  const jobFileOptsForProdForm = React.useMemo(
+    () => jobFiles.map((j) => ({ id: String(j.value), title: String(j.label) })),
+    [jobFiles]
+  );
+  async function onCreateProduct(payload: ProductFormValue) {
+    try {
+      const created: any = await createProduct(payload);
+      const en = payload.title_en?.trim() || created?.translations?.en?.title || "";
+      const ar = payload.title_ar?.trim() || created?.translations?.ar?.title || "";
+      const label = en && ar ? `${en} (${ar})` : (en || ar || "");
+      const value = String(created?.id || "");
+      const price = Number(created?.price ?? payload.price ?? 0);
+      if (value && label) {
+        const opt: DDOption = { value, label, price };
+        setProducts((prev) => [opt, ...prev]);
+        if (prodFormIndex != null) {
+          updateLine(prodFormIndex, { productId: value, price });
+        }
+      }
+      setProdFormOpen(false);
+      setProdFormIndex(null);
+      toast.success("Product created");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "Failed to create product");
+    }
+  }
 
   // ===== Load dropdowns =====
   React.useEffect(() => {
@@ -195,7 +246,6 @@ export default function NewQuotationPage() {
         setClients(dds.clients);
         setTaxes(dds.taxes);       // includes price (percent) if backend sends
       } catch (e: any) {
-        console.error("dropdown load error", e);
         toast.error(
           e?.response?.data?.message ||
             "Failed to load dropdowns. Check NEXT_PUBLIC_API_URL and backend /dropdowns module."
@@ -309,7 +359,7 @@ export default function NewQuotationPage() {
         <CardContent className="p-6">
           <h2 className="text-xl font-semibold">Basic Information</h2>
 
-          <div className="mt-6 grid gap-6 \">
+          <div className="mt-6 grid gap-6">
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="validUntil">Valid Until</Label>
               <Input
@@ -560,25 +610,76 @@ export default function NewQuotationPage() {
 
                 return (
                   <div key={i} className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <div className="space-y-2 md:col-span-1">
-                        <Label>Product/Service</Label>
+                    <div className="grid gap-4 md:grid-cols-5">
+                      <div className="space-y-2">
+                        <Label>Product (English)</Label>
                         <Select
                           value={l.productId}
                           onValueChange={(v) => {
+                            if (v === "__create__") {
+                              if (canCreateProduct) {
+                                setProdFormIndex(i);
+                                setProdFormOpen(true);
+                              }
+                              return;
+                            }
                             const selected = products.find((p) => p.value === v);
-                            // Auto-fill unit price from product dropdown (fallback 0)
                             updateLine(i, { productId: v, price: selected?.price ?? 0 });
                           }}
-                          disabled={loadingLists || products.length === 0}
+                          disabled={loadingLists}
                         >
-                          <SelectTrigger className="h-11">
-                            <SelectValue placeholder={loadingLists ? "Loading…" : "Select product"} />
+                          <SelectTrigger className="h-11 w-full">
+                            <SelectValue placeholder={loadingLists ? "Loading…" : "Select English name"} />
                           </SelectTrigger>
                           <SelectContent>
-                            {products.map((p) => (
+                            {canCreateProduct && (
+                              <SelectItem value="__create__" className="text-primary font-medium">
+                                <span className="inline-flex items-center gap-2">
+                                  <Plus className="h-3.5 w-3.5" />
+                                  Create Product…
+                                </span>
+                              </SelectItem>
+                            )}
+                            {productsEn.map((p) => (
                               <SelectItem key={p.value} value={p.value}>
                                 {p.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>المنتج (Arabic)</Label>
+                        <Select
+                          value={l.productId}
+                          onValueChange={(v) => {
+                            if (v === "__create__") {
+                              if (canCreateProduct) {
+                                setProdFormIndex(i);
+                                setProdFormOpen(true);
+                              }
+                              return;
+                            }
+                            const selected = products.find((p) => p.value === v);
+                            updateLine(i, { productId: v, price: selected?.price ?? 0 });
+                          }}
+                          disabled={loadingLists}
+                        >
+                          <SelectTrigger className="h-11 w-full">
+                            <SelectValue placeholder={loadingLists ? "Loading…" : "اختيار المنتج"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {canCreateProduct && (
+                              <SelectItem value="__create__" className="text-primary font-medium">
+                                <span className="inline-flex items-center gap-2">
+                                  <Plus className="h-3.5 w-3.5" />
+                                  Create Product…
+                                </span>
+                              </SelectItem>
+                            )}
+                            {productsAr.map((p) => (
+                              <SelectItem key={p.value} value={p.value}>
+                                <span dir="rtl">{p.label}</span>
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -588,6 +689,7 @@ export default function NewQuotationPage() {
                       <div className="space-y-2">
                         <Label>Quantity</Label>
                         <Input
+                          className="w-full"
                           inputMode="numeric"
                           value={String(l.qty)}
                           onChange={(e) =>
@@ -599,6 +701,7 @@ export default function NewQuotationPage() {
                       <div className="space-y-2">
                         <Label>Price</Label>
                         <Input
+                          className="w-full"
                           inputMode="decimal"
                           value={String(l.price)}
                           onChange={(e) =>
@@ -614,7 +717,7 @@ export default function NewQuotationPage() {
                           onValueChange={(v) => updateLine(i, { taxId: v })}
                           disabled={loadingLists}
                         >
-                          <SelectTrigger className="h-11">
+                          <SelectTrigger className="h-11 w-full">
                             <SelectValue placeholder={loadingLists ? "Loading…" : "Select tax"} />
                           </SelectTrigger>
                           <SelectContent>
@@ -667,7 +770,17 @@ export default function NewQuotationPage() {
                   </div>
                 );
               })}
-
+                  <div className="mt-8">
+                <h3 className="text-lg font-semibold">Description</h3>
+                <div className="mt-3">
+                  <Textarea
+                    placeholder="Add any additional terms, conditions, or notes…"
+                    rows={6}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                  />
+                </div>
+              </div>
               <div className="mt-4 flex items-center justify-end gap-8 text-right">
                 <div>
                   <div className="text-muted-foreground text-sm">Subtotal</div>
@@ -682,27 +795,14 @@ export default function NewQuotationPage() {
                   <div className="text-2xl font-extrabold text-blue-600">{money(grandTotal)}</div>
                 </div>
               </div>
+
+            
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Additional Notes (RENDER ONLY WHEN showRest) */}
-      {showRest && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-xl font-semibold">Additional Notes</h2>
-            <div className="mt-4">
-              <Textarea
-                placeholder="Add any additional terms, conditions, or notes…"
-                rows={6}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      
 
       {/* Actions */}
       <div className="flex justify-end gap-3">
@@ -714,6 +814,18 @@ export default function NewQuotationPage() {
         </Button>
       </div>
     </div>
+    {canCreateProduct && (
+      <ProductFormDialog
+        open={prodFormOpen}
+        onOpenChange={(next) => {
+          setProdFormOpen(Boolean(next));
+          if (!next) setProdFormIndex(null);
+        }}
+        mode="create"
+        jobFiles={jobFileOptsForProdForm}
+        onSubmit={onCreateProduct}
+      />
+    )}
      </PermissionBoundary>
    
   );

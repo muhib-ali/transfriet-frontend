@@ -7,14 +7,13 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
+  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import PermissionBoundary from "@/components/permission-boundary";
 
@@ -52,8 +51,10 @@ function StatusPill({ active }: { active: boolean }) {
 
 type Row = {
   id: string;
-  title: string;
-  description?: string | null;
+  title_en: string;
+  title_ar?: string | null;
+  description_en?: string | null;
+  description_ar?: string | null;
   price: number;
   job_file_id?: string | null;
   is_active: boolean;
@@ -72,7 +73,9 @@ export default function ProductsPage() {
   // Dialog
   const [open, setOpen] = React.useState(false);
   const [mode, setMode] = React.useState<"create" | "edit">("create");
-  const [current, setCurrent] = React.useState<Row | undefined>(undefined);
+  const [current, setCurrent] = React.useState<ProductFormValue | undefined>(
+    undefined
+  );
 
   // RBAC
   const canList = useHasPermission(
@@ -90,7 +93,6 @@ export default function ProductsPage() {
   const canDelete = useHasPermission(
     ENTITY_PERMS.products?.delete ?? "products.delete"
   );
-  // const canEdit = canRead || canUpdate;
 
   // Job File dropdown options
   const [jobFileOptions, setJobFileOptions] = React.useState<
@@ -104,21 +106,29 @@ export default function ProductsPage() {
 
   const normalizeRows = (
     products: ProductItem[],
-    jobFiles: Array<{ id: string; title: string }>
+    _jobFiles: Array<{ id: string; title: string }>
   ): Row[] => {
-    // (map already created above; we just normalize product fields)
-    return products.map((p) => ({
-      id: p.id,
-      title: p.title,
-      description: p.description ?? "",
-      price:
+    return products.map((p) => {
+      const en = p.translations?.en;
+      const ar = p.translations?.ar;
+
+      const priceNum =
         typeof p.price === "string"
           ? parseFloat(p.price)
-          : Number(p.price || 0),
-      job_file_id: p.job_file_id ?? null,
-      is_active: p.is_active ?? false,
-      created_at: p.created_at,
-    }));
+          : Number(p.price || 0);
+
+      return {
+        id: p.id,
+        title_en: en?.title ?? "(no title)",
+        title_ar: ar?.title ?? "",
+        description_en: en?.description ?? "",
+        description_ar: ar?.description ?? "",
+        price: priceNum,
+        job_file_id: p.category_id ?? null,
+        is_active: p.is_active ?? false,
+        created_at: p.created_at,
+      };
+    });
   };
 
   const refresh = async (search?: string) => {
@@ -137,7 +147,7 @@ export default function ProductsPage() {
 
   const [jobFilesLoaded, setJobFilesLoaded] = React.useState(false);
 
-  // Load job files once (for title mapping) to avoid extra requests per keystroke
+  // Load job files once
   React.useEffect(() => {
     const ac = new AbortController();
     (async () => {
@@ -165,7 +175,7 @@ export default function ProductsPage() {
           setRows([]);
           return;
         }
-        if (!jobFilesLoaded) return; // wait until job files are loaded once
+        if (!jobFilesLoaded) return;
         const { rows: prods } = await listProducts(
           page,
           limit,
@@ -174,7 +184,7 @@ export default function ProductsPage() {
         );
         setRows(normalizeRows(prods, jobFileOptions));
       } catch (e: any) {
-        if (e?.code === "ERR_CANCELED" || e?.message === "canceled") return; // ignore aborts
+        if (e?.code === "ERR_CANCELED" || e?.message === "canceled") return;
         console.error(e);
         toast.error(e?.response?.data?.message || "Failed to load products");
       } finally {
@@ -203,21 +213,26 @@ export default function ProductsPage() {
   };
 
   const openEdit = async (row: Row) => {
-    if (!canUpdate) return; // hard stop
+    if (!canUpdate) return;
     try {
       const p = await getProductById(row.id);
+      const en = p.translations?.en;
+      const ar = p.translations?.ar;
+
+      const priceNum =
+        typeof p.price === "string"
+          ? parseFloat(p.price)
+          : Number(p.price || 0);
+
       setMode("edit");
       setCurrent({
         id: p.id,
-        title: p.title,
-        description: p.description ?? "",
-        price:
-          typeof p.price === "string"
-            ? parseFloat(p.price)
-            : Number(p.price || 0),
-        job_file_id: p.job_file_id ?? null,
-        is_active: p.is_active ?? false,
-        created_at: p.created_at,
+        price: priceNum,
+        job_file_id: p.category_id ?? null,
+        title_en: en?.title ?? "",
+        description_en: en?.description ?? "",
+        title_ar: ar?.title ?? "",
+        description_ar: ar?.description ?? "",
       });
       setOpen(true);
     } catch (e: any) {
@@ -231,20 +246,24 @@ export default function ProductsPage() {
       if (mode === "create") {
         if (!canCreate) return;
         await createProduct({
-          title: payload.title,
-          description: payload.description,
           price: payload.price,
           job_file_id: payload.job_file_id ?? null,
+          title_en: payload.title_en,
+          description_en: payload.description_en,
+          title_ar: payload.title_ar,
+          description_ar: payload.description_ar,
         });
         toast.success("Product created");
       } else {
         if (!canUpdate) return;
         await updateProduct({
           id: payload.id!,
-          title: payload.title,
-          description: payload.description,
           price: payload.price,
           job_file_id: payload.job_file_id ?? null,
+          title_en: payload.title_en,
+          description_en: payload.description_en,
+          title_ar: payload.title_ar,
+          description_ar: payload.description_ar,
         });
         toast.success("Product updated");
       }
@@ -355,10 +374,37 @@ export default function ProductsPage() {
                               }`}
                             >
                               <div className="flex flex-col">
-                                <span>{p.title}</span>
-                                <span className="text-xs text-muted-foreground line-clamp-1">
-                                  {p.description || "—"}
+                                {/* Title line: Iron (مكواة) */}
+                                <span>
+                                  {p.title_en}
+                                  {p.title_ar && (
+                                    <span
+                                      className="ml-1 text-xs text-muted-foreground"
+                                      dir="rtl"
+                                    >
+                                      ({p.title_ar})
+                                    </span>
+                                  )}
                                 </span>
+
+                                {/* Description English */}
+                                {(p.description_en || p.description_ar) && (
+                                  <span className="text-xs text-muted-foreground line-clamp-1">
+                                    {p.description_en}
+                                    {p.description_en && p.description_ar && (
+                                      <span className="ml-1" dir="rtl">({p.description_ar})</span>
+                                    )}
+                                    {!p.description_en && p.description_ar && (
+                                      <span dir="rtl">{p.description_ar}</span>
+                                    )}
+                                  </span>
+                                )}
+
+                                {!p.description_en && !p.description_ar && (
+                                  <span className="text-xs text-muted-foreground">
+                                    —
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td className="p-4 text-muted-foreground">
@@ -481,7 +527,6 @@ export default function ProductsPage() {
         <ProductFormDialog
           open={mode === "edit" ? (canUpdate && open) : (canCreate && open)}
           onOpenChange={(next) => {
-            // block opening if lacking permission for the current mode
             if (mode === "edit" && !canUpdate) return;
             if (mode === "create" && !canCreate) return;
             setOpen(next);
@@ -489,15 +534,7 @@ export default function ProductsPage() {
           }}
           mode={mode}
           jobFiles={jobFileOptions}
-          initial={
-            current && {
-              id: current.id,
-              title: current.title,
-              description: current.description ?? "",
-              price: current.price,
-              job_file_id: current.job_file_id ?? null,
-            }
-          }
+          initial={current}
           onSubmit={upsert}
         />
       </div>

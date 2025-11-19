@@ -2,12 +2,19 @@
 import apiClient from "@/lib/api-client";
 
 /** ===== Backend types ===== */
+
+export type ProductTranslations = {
+  [lang: string]: {
+    title: string;
+    description: string | null;
+  };
+};
+
 export type ProductItem = {
   id: string;
-  title: string;
-  description?: string | null;
-  price: number | string;         // backend may return string
-  job_file_id?: string | null;    // nullable
+  price: number | string;
+  category_id?: string | null;      // backend ProductDto.category_id
+  translations: ProductTranslations;
   is_active?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -102,8 +109,6 @@ function sanitize<T extends object>(obj: T, allow: (keyof T)[]) {
   return out;
 }
 
-
-
 /* ===== READ ===== */
 export async function listProducts(
   page = 1,
@@ -136,20 +141,31 @@ export async function getProductById(id: string) {
 
 /* ===== CREATE ===== */
 export async function createProduct(input: {
-  title: string;
-  description?: string;
   price: number;
   job_file_id?: string | null;
+  title_en: string;
+  description_en?: string;
+  title_ar: string;
+  description_ar?: string;
 }) {
   const body = sanitize(
     {
-      title: input.title?.trim(),
-
-      description: input.description?.trim(),
       price: Number(input.price),
       job_file_id: input.job_file_id ?? null,
+      translations: [
+        {
+          language_code: "en",
+          title: input.title_en.trim(),
+          description: input.description_en?.trim() || null,
+        },
+        {
+          language_code: "ar",
+          title: input.title_ar.trim(),
+          description: input.description_ar?.trim() || null,
+        },
+      ],
     },
-    ["title", "description", "price", "job_file_id"]
+    ["price", "job_file_id", "translations" as any]
   );
 
   const { data } = await with429Retry(() =>
@@ -161,22 +177,32 @@ export async function createProduct(input: {
 /* ===== UPDATE ===== */
 export async function updateProduct(input: {
   id: string;
-  title: string;
-
-  description?: string;
   price: number;
   job_file_id?: string | null;
+  title_en: string;
+  description_en?: string;
+  title_ar: string;
+  description_ar?: string;
 }) {
   const body = sanitize(
     {
       id: input.id,
-      title: input.title?.trim(),
-
-      description: input.description?.trim(),
       price: Number(input.price),
       job_file_id: input.job_file_id ?? null,
+      translations: [
+        {
+          language_code: "en",
+          title: input.title_en.trim(),
+          description: input.description_en?.trim() || null,
+        },
+        {
+          language_code: "ar",
+          title: input.title_ar.trim(),
+          description: input.description_ar?.trim() || null,
+        },
+      ],
     },
-    ["id", "title", "description", "price", "job_file_id"]
+    ["id", "price", "job_file_id", "translations" as any]
   );
 
   const { data } = await with429Retry(() =>
